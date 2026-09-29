@@ -129,8 +129,8 @@ class SmsListenerService {
       }
     }
 
-    // 2. Read whitelisted inbox SMS (Only new unread/unprocessed SMS received on or after install date)
-    final messages = await readWhitelistedInboxSms(whitelist);
+    // 2. Read all inbox SMS (checks whitelisted as well as non-whitelisted senders for financial transaction keywords)
+    final messages = await readWhitelistedInboxSms([]);
     for (final msg in messages) {
       final sender = msg['sender'] as String? ?? '';
       final body = msg['body'] as String? ?? '';
@@ -147,10 +147,13 @@ class SmsListenerService {
           sender: sender,
           customAllowedSenders: whitelist,
         );
-        await markSmsAsProcessed(smsKey);
-        processedKeys.add(smsKey);
-        await onWhitelistedSmsReceived(parsed);
-        count++;
+        // Only trigger prompt if transaction amount was detected
+        if (parsed.amount > 0) {
+          await markSmsAsProcessed(smsKey);
+          processedKeys.add(smsKey);
+          await onWhitelistedSmsReceived(parsed);
+          count++;
+        }
       }
     }
     return count;
