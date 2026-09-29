@@ -156,11 +156,21 @@ class SmsListenerService {
     return count;
   }
 
-  /// Start listening to incoming Android SMS broadcasts (filters exclusively for whitelisted bank senders)
+  Timer? _periodicTimer;
+
+  /// Start periodic 1-minute SMS scheduler that reads unread whitelisted bank SMS from Android inbox (requires ONLY READ_SMS permission)
   void startListening(WidgetRef ref, {required Function(SmsParseResult result) onWhitelistedSmsReceived}) {
-    // Perform initial background sync of unread/inbox SMS and pending background SMS from state file
+    // 1. Immediate sync on start
     syncInboxSms(ref, onWhitelistedSmsReceived: (parsed) async {
       onWhitelistedSmsReceived(parsed);
+    });
+
+    // 2. Schedule inbox poll every 1 minute
+    _periodicTimer?.cancel();
+    _periodicTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      syncInboxSms(ref, onWhitelistedSmsReceived: (parsed) async {
+        onWhitelistedSmsReceived(parsed);
+      });
     });
 
     _subscription?.cancel();
@@ -196,6 +206,8 @@ class SmsListenerService {
   }
 
   void stopListening() {
+    _periodicTimer?.cancel();
+    _periodicTimer = null;
     _subscription?.cancel();
     _subscription = null;
   }

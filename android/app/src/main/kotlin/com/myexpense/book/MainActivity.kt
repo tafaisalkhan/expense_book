@@ -55,20 +55,18 @@ class MainActivity : FlutterFragmentActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SMS_METHOD_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "checkSmsPermission" -> {
-                    val hasReceive = ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
                     val hasRead = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
-                    result.success(hasReceive && hasRead)
+                    result.success(hasRead)
                 }
                 "requestSmsPermission" -> {
-                    val hasReceive = ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
                     val hasRead = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
-                    if (hasReceive && hasRead) {
+                    if (hasRead) {
                         result.success(true)
                     } else {
                         permissionResult = result
                         ActivityCompat.requestPermissions(
                             this,
-                            arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS),
+                            arrayOf(Manifest.permission.READ_SMS),
                             101
                         )
                     }
@@ -111,10 +109,8 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 101) {
-            val hasReceive = ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
             val hasRead = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
-            val isGranted = hasReceive && hasRead
-            permissionResult?.success(isGranted)
+            permissionResult?.success(hasRead)
             permissionResult = null
         }
     }
