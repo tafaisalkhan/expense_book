@@ -4,6 +4,9 @@ class AuthUser {
   final String? displayName;
   final String? photoUrl;
   final bool isLoggedIn;
+  final String? loggedOutNotice;
+  final bool requiresLogoutDialog;
+  final String? logoutDialogReason;
 
   const AuthUser({
     required this.uid,
@@ -11,15 +14,21 @@ class AuthUser {
     this.displayName,
     this.photoUrl,
     this.isLoggedIn = false,
+    this.loggedOutNotice,
+    this.requiresLogoutDialog = false,
+    this.logoutDialogReason,
   });
 
-  factory AuthUser.anonymous() {
-    return const AuthUser(
+  factory AuthUser.anonymous({String? notice}) {
+    return AuthUser(
       uid: '',
       email: null,
       displayName: null,
       photoUrl: null,
       isLoggedIn: false,
+      loggedOutNotice: notice,
+      requiresLogoutDialog: false,
+      logoutDialogReason: null,
     );
   }
 
@@ -29,6 +38,9 @@ class AuthUser {
     String? displayName,
     String? photoUrl,
     bool? isLoggedIn,
+    String? loggedOutNotice,
+    bool? requiresLogoutDialog,
+    String? logoutDialogReason,
   }) {
     return AuthUser(
       uid: uid ?? this.uid,
@@ -36,6 +48,9 @@ class AuthUser {
       displayName: displayName ?? this.displayName,
       photoUrl: photoUrl ?? this.photoUrl,
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
+      loggedOutNotice: loggedOutNotice ?? this.loggedOutNotice,
+      requiresLogoutDialog: requiresLogoutDialog ?? this.requiresLogoutDialog,
+      logoutDialogReason: logoutDialogReason ?? this.logoutDialogReason,
     );
   }
 }

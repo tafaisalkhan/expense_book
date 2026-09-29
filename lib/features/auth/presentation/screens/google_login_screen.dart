@@ -150,6 +150,7 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
     ref.listen<AuthUser>(authProvider, (previous, next) {
       if (next.isLoggedIn && mounted) {
         context.go('/dashboard');
@@ -217,6 +218,30 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
+
+                        if (authState.loggedOutNotice != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.amber[50],
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.amber[600]!),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: Colors.amber[900], size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    authState.loggedOutNotice!,
+                                    style: TextStyle(color: Colors.amber[900], fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
 
                         if (_errorMessage != null) ...[
                           Container(

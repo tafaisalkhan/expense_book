@@ -1,11 +1,27 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:myexpence/core/config/firebase_config.dart';
 import 'package:myexpence/core/providers/core_providers.dart';
 import 'package:myexpence/features/auth/domain/models/auth_user.dart';
+import 'package:myexpence/features/budgets/presentation/providers/budget_providers.dart';
+import 'package:myexpence/features/calendar/presentation/providers/calendar_providers.dart';
+import 'package:myexpence/features/dashboard/presentation/providers/dashboard_providers.dart';
+import 'package:myexpence/features/expenses/presentation/providers/expense_providers.dart';
+import 'package:myexpence/features/notifications/presentation/providers/location_notification_providers.dart';
+import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
+import 'package:myexpence/features/security/presentation/providers/security_providers.dart';
+import 'package:myexpence/features/sms_parser/presentation/providers/sms_whitelist_provider.dart';
+import 'package:myexpence/features/subscription/domain/services/firebase_cloud_backup_service.dart';
+import 'package:myexpence/features/subscription/presentation/providers/subscription_providers.dart';
 
 class AuthNotifier extends StateNotifier<AuthUser> {
   static const String projectId = FirebaseConfig.projectId;
@@ -13,8 +29,12 @@ class AuthNotifier extends StateNotifier<AuthUser> {
   static const String _keyUserEmail = 'auth_user_email';
   static const String _keyUserUid = 'auth_user_uid';
   static const String _keyUserName = 'auth_user_name';
+  static const String _keySessionToken = 'auth_session_token';
 
   final Ref? _ref;
+  String? _currentSessionToken;
+  StreamSubscription<DocumentSnapshot>? _activeSessionSub;
+  Timer? _sessionPollTimer;
 
   AuthNotifier([this._ref]) : super(AuthUser.anonymous()) {
     _loadAuthState();
@@ -30,12 +50,109 @@ class AuthNotifier extends StateNotifier<AuthUser> {
               ? user.displayName!
               : (userEmail.contains('@') ? userEmail.split('@').first : 'Google User');
 
-          if (userEmail.isNotEmpty) {
+          if (userEmail.isNotEmpty && state.email != userEmail) {
             _saveAndSetState(user.uid, userEmail, userName);
           }
         }
       });
     } catch (_) {}
+  }
+
+  String _generateSessionToken() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final randomVal = 100000 + Random().nextInt(899999);
+    return '${timestamp}_$randomVal';
+  }
+
+  Future<void> _updateCloudSession(String docKey, String token, String email) async {
+    // 1. Update Firebase Storage active session record
+    try {
+      final jsonBytes = utf8.encode(jsonEncode({
+        'sessionToken': token,
+        'email': email,
+        'lastLoginAt': DateTime.now().millisecondsSinceEpoch,
+      }));
+      final storageRef = FirebaseStorage.instance.ref().child('active_sessions/$docKey.json');
+      await storageRef.putData(Uint8List.fromList(jsonBytes));
+    } catch (e) {
+      debugPrint('Firebase Storage active session registration notice: $e');
+    }
+
+    // 2. Update Cloud Firestore active session record
+    try {
+      await FirebaseFirestore.instance.collection('active_sessions').doc(docKey).set({
+        'sessionToken': token,
+        'email': email,
+        'lastLoginAt': FieldValue.serverTimestamp(),
+        'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Firestore active session registration notice: $e');
+    }
+  }
+
+  Future<void> _registerAndListenActiveSession(String email) async {
+    if (email.isEmpty || !email.contains('@')) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    _currentSessionToken ??= prefs.getString(_keySessionToken);
+    if (_currentSessionToken == null || _currentSessionToken!.isEmpty) {
+      _currentSessionToken = _generateSessionToken();
+      await prefs.setString(_keySessionToken, _currentSessionToken!);
+    }
+
+    User? firebaseUser;
+    try {
+      firebaseUser = FirebaseAuth.instance.currentUser;
+    } catch (_) {}
+    final String docKey = (firebaseUser != null && firebaseUser.uid.isNotEmpty)
+        ? firebaseUser.uid
+        : 'user_${email.toLowerCase().trim().replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_')}';
+
+    await _updateCloudSession(docKey, _currentSessionToken!, email);
+    _startActiveSessionMonitoring(docKey);
+  }
+
+  void triggerLogoutDialog(String reason) {
+    if (state.requiresLogoutDialog) return;
+    _sessionPollTimer?.cancel();
+    _activeSessionSub?.cancel();
+    state = state.copyWith(
+      requiresLogoutDialog: true,
+      logoutDialogReason: reason,
+    );
+  }
+
+  void _startActiveSessionMonitoring(String docKey) {
+    _sessionPollTimer?.cancel();
+    _activeSessionSub?.cancel();
+
+    // Listen to Cloud Firestore real-time active session changes for this user account
+    try {
+      _activeSessionSub = FirebaseFirestore.instance
+          .collection('active_sessions')
+          .doc(docKey)
+          .snapshots()
+          .listen(
+        (snapshot) {
+          if (snapshot.exists && snapshot.data() != null) {
+            final data = snapshot.data() as Map<String, dynamic>;
+            final remoteToken = data['sessionToken'] as String?;
+            if (remoteToken != null &&
+                _currentSessionToken != null &&
+                remoteToken != _currentSessionToken) {
+              debugPrint('⚠️ Remote active session token ($remoteToken) != local token ($_currentSessionToken). Triggering logout popup...');
+              triggerLogoutDialog('You have been logged out because your account was logged into from another device.');
+            }
+          }
+        },
+        onError: (error) {
+          debugPrint('Firestore session listener notice: $error');
+        },
+      );
+    } catch (e) {
+      debugPrint('Firestore session listener notice: $e');
+    }
   }
 
   Future<void> _loadAuthState() async {
@@ -62,6 +179,8 @@ class AuthNotifier extends StateNotifier<AuthUser> {
         displayName: displayName,
         isLoggedIn: true,
       );
+
+      await _registerAndListenActiveSession(email);
     }
   }
 
@@ -81,7 +200,7 @@ class AuthNotifier extends StateNotifier<AuthUser> {
 
         try {
           final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-          if (googleAuth.accessToken != null || googleAuth.idToken != null) {
+          if (googleAuth.idToken != null || googleAuth.accessToken != null) {
             final OAuthCredential credential = GoogleAuthProvider.credential(
               accessToken: googleAuth.accessToken,
               idToken: googleAuth.idToken,
@@ -95,9 +214,20 @@ class AuthNotifier extends StateNotifier<AuthUser> {
                 userName = userCredential.user!.displayName!;
               }
             }
+          } else {
+            final UserCredential anonUser = await FirebaseAuth.instance.signInAnonymously();
+            if (anonUser.user != null) {
+              uid = anonUser.user!.uid;
+            }
           }
         } catch (e) {
-          debugPrint('Firebase Auth credential exchange warning: $e');
+          debugPrint('Firebase Auth credential exchange fallback: $e');
+          try {
+            final UserCredential anonUser = await FirebaseAuth.instance.signInAnonymously();
+            if (anonUser.user != null) {
+              uid = anonUser.user!.uid;
+            }
+          } catch (_) {}
         }
 
         return await _saveAndSetState(uid, userEmail, userName);
@@ -124,12 +254,34 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     return await _saveAndSetState(uid, trimmedEmail, displayName);
   }
 
+  void _invalidateAllDataProviders() {
+    if (_ref == null) return;
+    try {
+      _ref.invalidate(recentExpensesProvider);
+      _ref.invalidate(dashboardDataProvider);
+      _ref.invalidate(calendarMonthDataProvider);
+      _ref.invalidate(peopleListProvider);
+      _ref.invalidate(periodBudgetsProvider);
+      _ref.invalidate(expenseNotifierProvider);
+      _ref.invalidate(personNotifierProvider);
+      _ref.invalidate(budgetNotifierProvider);
+      _ref.invalidate(subscriptionProvider);
+      _ref.invalidate(smsWhitelistProvider);
+      _ref.invalidate(locationNotificationProvider);
+    } catch (e) {
+      debugPrint('Provider invalidation notice: $e');
+    }
+  }
+
   Future<bool> _saveAndSetState(String uid, String email, String name) async {
+    _currentSessionToken = _generateSessionToken();
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyIsLoggedIn, true);
     await prefs.setString(_keyUserEmail, email);
     await prefs.setString(_keyUserUid, uid);
     await prefs.setString(_keyUserName, name);
+    await prefs.setString(_keySessionToken, _currentSessionToken!);
 
     state = AuthUser(
       uid: uid,
@@ -138,50 +290,174 @@ class AuthNotifier extends StateNotifier<AuthUser> {
       isLoggedIn: true,
     );
 
-    return true;
-  }
-
-  Future<void> signOut() async {
-    try {
-      await GoogleSignIn().signOut();
-      await FirebaseAuth.instance.signOut();
-    } catch (_) {}
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-
-    state = AuthUser.anonymous();
-  }
-
-  Future<void> deleteAccount() async {
-    try {
-      // 1. Delete user from Firebase Auth
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        await user.delete();
-      }
-      await GoogleSignIn().signOut();
-      await FirebaseAuth.instance.signOut();
-    } catch (_) {}
-
-    // 2. Wipe SQLite DB local data
     if (_ref != null) {
       try {
         final db = _ref.read(appDatabaseProvider);
         await db.clearAllData();
       } catch (_) {}
+
+      _invalidateAllDataProviders();
     }
 
-    // 3. Clear all SharedPreferences data on device
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await _registerAndListenActiveSession(email);
 
-    // 4. Reset auth state
-    state = AuthUser.anonymous();
+    // Auto-restore cloud backup for the newly logged in user if available
+    if (_ref != null) {
+      try {
+        final backupService = FirebaseCloudBackupService();
+        await backupService.restoreDataFromFirebase(_ref!, optionalEmail: email);
+      } catch (e) {
+        debugPrint('Cloud restore notice on sign in: $e');
+      }
+      _invalidateAllDataProviders();
+    }
+
+    return true;
+  }
+
+  Future<void> clearAllLocalData() async {
+    try {
+      await FirebaseCloudBackupService().deleteLocalBackupZip();
+    } catch (_) {}
+
+    if (_ref != null) {
+      try {
+        final db = _ref.read(appDatabaseProvider);
+        await db.clearAllData();
+      } catch (_) {}
+
+      _invalidateAllDataProviders();
+    }
+  }
+
+  Future<void> signOut({String? reason}) async {
+    _sessionPollTimer?.cancel();
+    _sessionPollTimer = null;
+
+    final email = state.email;
+    if (email != null && email.isNotEmpty) {
+      final sanitizedEmail = email.toLowerCase().trim().replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
+      final docKey = 'user_$sanitizedEmail';
+      try {
+        FirebaseFirestore.instance.collection('active_sessions').doc(docKey).delete().catchError((_) {});
+      } catch (_) {}
+    }
+
+    await _activeSessionSub?.cancel();
+    _activeSessionSub = null;
+    _currentSessionToken = null;
+
+    try {
+      await FirebaseCloudBackupService().deleteLocalBackupZip();
+    } catch (_) {}
+
+    try {
+      await GoogleSignIn().disconnect();
+    } catch (_) {}
+    try {
+      await GoogleSignIn().signOut();
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
+
+    if (_ref != null) {
+      try {
+        final db = _ref.read(appDatabaseProvider);
+        await db.clearAllData();
+      } catch (_) {}
+
+      _invalidateAllDataProviders();
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final bool appLockSetting = prefs.getBool('app_lock_security_enabled_v1') ?? true;
+    
+    await prefs.clear();
+    await prefs.setBool('app_lock_security_enabled_v1', appLockSetting);
+
+    if (_ref != null) {
+      try {
+        _ref.read(securityNotifierProvider.notifier).lockApp();
+      } catch (_) {}
+    }
+
+    state = AuthUser.anonymous(notice: reason);
+  }
+
+  Future<bool> deleteAccount() async {
+    final String? targetEmail = state.email;
+    final String targetUid = state.uid;
+
+    _sessionPollTimer?.cancel();
+    _sessionPollTimer = null;
+
+    _activeSessionSub?.cancel();
+    _activeSessionSub = null;
+    _currentSessionToken = null;
+
+    // 1. Launch non-blocking remote cloud data purge in background
+    unawaited(
+      FirebaseCloudBackupService()
+          .deleteCloudData(targetEmail, targetUid)
+          .catchError((e) => debugPrint('Cloud data delete notice: $e')),
+    );
+
+    // 2. Perform local data clearing & auth sign-out in parallel
+    final List<Future> cleanupFutures = [];
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      cleanupFutures.add(
+        user.delete().timeout(const Duration(seconds: 1), onTimeout: () {}).catchError((_) {}),
+      );
+    }
+    cleanupFutures.add(
+      GoogleSignIn().disconnect().catchError((_) => null),
+    );
+    cleanupFutures.add(
+      GoogleSignIn().signOut().catchError((_) => null),
+    );
+    cleanupFutures.add(
+      FirebaseAuth.instance.signOut().catchError((_) {}),
+    );
+
+    if (_ref != null) {
+      try {
+        final db = _ref.read(appDatabaseProvider);
+        cleanupFutures.add(db.clearAllData().catchError((_) {}));
+      } catch (_) {}
+    }
+
+    try {
+      await Future.wait(cleanupFutures).timeout(const Duration(seconds: 1), onTimeout: () => []);
+    } catch (_) {}
+
+    if (_ref != null) {
+      _invalidateAllDataProviders();
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final bool appLockSetting = prefs.getBool('app_lock_security_enabled_v1') ?? true;
+    await prefs.clear();
+    await prefs.setBool('app_lock_security_enabled_v1', appLockSetting);
+
+    if (_ref != null) {
+      try {
+        _ref.read(securityNotifierProvider.notifier).lockApp();
+      } catch (_) {}
+    }
+
+    state = AuthUser.anonymous(notice: 'User account deleted successfully.');
+    return true;
+  }
+
+  @override
+  void dispose() {
+    _sessionPollTimer?.cancel();
+    _activeSessionSub?.cancel();
+    super.dispose();
   }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthUser>((ref) {
   return AuthNotifier(ref);
 });
-

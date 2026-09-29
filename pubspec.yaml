@@ -33,6 +33,11 @@ dependencies:
   file_picker: ^8.0.5
   receive_sharing_intent: ^1.4.5
   google_mlkit_text_recognition: ^0.17.1
+  local_auth: ^3.0.2
+  archive: ^3.6.1
+  cloud_firestore: ^5.0.0
+  firebase_storage: ^12.1.0
+  google_mobile_ads: ^9.1.0
 
 dev_dependencies:
   flutter_test:

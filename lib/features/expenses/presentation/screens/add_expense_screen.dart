@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
 import 'package:myexpence/core/utils/date_formatters.dart';
+import 'package:myexpence/core/widgets/draggable_floating_action_button.dart';
 import 'package:myexpence/features/categories/domain/models/category.dart';
 import 'package:myexpence/features/categories/presentation/providers/category_providers.dart';
 import 'package:myexpence/features/expenses/domain/models/expense.dart';
@@ -186,13 +187,15 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0, bottom: 90.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               // 1. Amount Field
               TextFormField(
                 controller: _amountController,
@@ -436,26 +439,19 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               ),
               const SizedBox(height: 28),
 
-              // Save Button
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: _submitForm,
-                  child: Text(
-                    widget.expenseToEdit != null ? 'UPDATE EXPENSE' : 'SAVE EXPENSE',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
+                  const SizedBox(height: 30),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          DraggableSaveButton(
+            onPressed: _submitForm,
+            label: widget.expenseToEdit != null ? 'Update Expense' : 'Save Expense',
+            icon: Icons.check_circle,
+            initialBottom: 24,
+            initialRight: 16,
+          ),
+        ],
       ),
     );
   }

@@ -52,6 +52,7 @@ Thank you for visiting Shell!
     test('Rule 1 & 5: Leaving Petrol Pump, Super Market & Local Market in 1 day generates 3 distinct notifications', () async {
       final notifier = LocationNotificationNotifier();
       await notifier.loadNotifications();
+      notifier.clearTodayNotificationsForTest();
 
       final notif1 = await notifier.userLeftLocation(placeName: 'Petrol Pump', type: LocationType.petrolPump);
       final notif2 = await notifier.userLeftLocation(placeName: 'Super Market', type: LocationType.superMarket);
@@ -71,6 +72,7 @@ Thank you for visiting Shell!
     test('Rule 3: Muted location suppresses all future notifications', () async {
       final notifier = LocationNotificationNotifier();
       await notifier.loadNotifications();
+      notifier.clearTodayNotificationsForTest();
 
       await notifier.muteLocation('Local Market');
 
@@ -81,6 +83,7 @@ Thank you for visiting Shell!
     test('Rule 4: Discarding notification clears current visit but permits future visits today', () async {
       final notifier = LocationNotificationNotifier();
       await notifier.loadNotifications();
+      notifier.clearTodayNotificationsForTest();
 
       final notif = await notifier.userLeftLocation(placeName: 'Super Market', type: LocationType.superMarket);
       expect(notif, isNotNull);
@@ -91,6 +94,17 @@ Thank you for visiting Shell!
       final newVisitNotif = await notifier.userLeftLocation(placeName: 'Super Market', type: LocationType.superMarket);
       expect(newVisitNotif, isNotNull);
       expect(newVisitNotif!.id, isNot(equals(notif.id)));
+    });
+
+    test('Rule 7: Entering and re-entering geofence range generates single notification on each entry', () async {
+      final notifier = LocationNotificationNotifier();
+      await notifier.loadNotifications();
+      notifier.clearTodayNotificationsForTest();
+
+      final entryNotif = await notifier.userEnteredLocation(placeName: 'Metro Superstore', type: LocationType.superMarket);
+      expect(entryNotif, isNotNull);
+      expect(entryNotif!.placeName, equals('Metro Superstore'));
+      expect(notifier.currentState.activeNotifications.length, equals(1));
     });
 
     test('Rule 6: Notifications expire on previous day and do NOT carry over', () async {

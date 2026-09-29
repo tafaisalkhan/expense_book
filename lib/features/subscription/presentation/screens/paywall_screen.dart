@@ -357,12 +357,24 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: () {
-                    ref.read(subscriptionProvider.notifier).cancelSubscription();
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red[700],
+                    side: BorderSide(color: Colors.red[300]!),
+                  ),
+                  onPressed: () async {
+                    await ref.read(subscriptionProvider.notifier).cancelSubscription();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Switched to Free Tier. Ads are now ENABLED.'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    }
                   },
-                  child: const Text('Cancel Subscription'),
+                  icon: const Icon(Icons.block, size: 18),
+                  label: const Text('Switch to Free Tier (Enable Ads for Testing)'),
                 ),
               ] else ...[
                 SizedBox(

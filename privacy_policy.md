@@ -1,55 +1,76 @@
-# Privacy Policy for MyExpense
+# Privacy Policy for Expense Book
 
-**Effective Date:** September 25, 2026  
-**Application:** MyExpense (`com.myexpense.app`)
+**Effective Date:** September 29, 2026  
+**Application Name:** Expense Book  
+**Package Name:** `com.myexpense.book`  
+**Developer:** Tafaisalkhan  
 
 ---
 
 ## 1. Overview
-At **MyExpense**, we prioritize user data privacy, security, and transparency. This Privacy Policy outlines how our application collects, processes, and protects your information when you use our mobile expense tracking application, OCR document scanner, SMS financial auto-categorizer, and map-based geofence notification services.
+**Expense Book** ("we", "our", or "us") is dedicated to protecting your privacy. This Privacy Policy explains how our application handles information, user data, device permissions, and advertising when you use the Expense Book mobile application.
+
+Expense Book is built on an **Offline-First Architecture**. Your financial records, receipts, categories, budgets, and personal profiles are stored locally on your device by default.
 
 ---
 
-## 2. Information We Collect & Use
+## 2. Information We Collect & How It Is Used
 
-### A. Camera & Storage Access (OCR Receipt Scanning)
-- **Purpose:** To allow users to capture photos of receipt slips, bills, and tax invoices, or attach PDF documents for automated item name, total price, merchant, date, and time extraction.
-- **Data Handling:** Image optical character recognition (OCR) is performed on-device. Images uploaded or processed are strictly stored in local device storage for expense attachment purposes and are never sold or used for advertising.
+### A. Local Financial Data (Offline-First)
+* **What is stored:** Expense amounts, category classifications, transaction dates, merchant names, notes, family profile tags, and monthly budget limits.
+* **Storage Location:** Stored exclusively in a local SQLite database on your device.
+* **Data Transmission:** This data is **never** uploaded to external servers without your explicit manual action (e.g., exporting a local backup file).
 
-### B. SMS Permission (`RECEIVE_SMS`, `READ_SMS`)
-- **Purpose:** To analyze financial transaction SMS alerts sent by whitelisted banks and payment gateways (e.g., POS card debits, supermarket purchases, petrol pump payments) and automatically present draft expense entries for user review.
-- **Data Handling:** SMS messages are read **locally on your device**. Personal SMS conversations are completely ignored. SMS content is **never uploaded** to remote servers or shared with third parties.
+### B. Google Authentication (Firebase Auth)
+* **What is collected:** Google Account email address, display name, and unique user identifier (UID).
+* **Purpose:** Used strictly for secure user authentication and account login verification.
 
-### C. Location Services & Geofencing (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`)
-- **Purpose:** To provide interactive OpenStreetMap location picking, allow custom marker pinpointing (e.g., Petrol Stations, Supermarkets, Local Markets), and trigger local push notifications reminding you to log an expense when leaving commercial locations.
-- **Data Handling:** Location coordinates remain exclusively on your device within local application storage. Live location tracking data is never broadcasted to external tracking servers.
+### C. SMS Reading & Auto-Parsing Permission (`READ_SMS`, `RECEIVE_SMS`)
+* **Purpose:** Allows the app to auto-detect bank transaction SMS notifications from user-whitelisted senders (e.g., bank debit/credit alerts).
+* **Processing:** All SMS parsing occurs **100% locally on your device**. Raw SMS text is never transmitted to external servers.
+* **User Control:** SMS parsing requires explicit user approval before any transaction is saved. Users can add or remove whitelisted senders at any time.
 
-### D. Financial & User Data Storage
-- **Local Storage:** All expense entries, custom categories, subcategories, budgets, family member tags, and transaction logs are stored locally on your device in secure SQLite storage.
-- **Data Control:** You retain 100% control over your data, with complete ability to edit, delete, export, or wipe all records at any time.
-
----
-
-## 3. Data Sharing & Third-Party Services
-- **No Third-Party Data Sales:** We do **NOT** sell, rent, trade, or monetize your personal or financial data under any circumstances.
-- **External Services:** Map tiles are rendered via OpenStreetMap standard public tile layers (`tile.openstreetmap.org`). No sensitive user identity or financial details are passed to map tile providers.
+### D. Location & Geofencing Permission (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`)
+* **Purpose:** Triggers optional post-visit expense reminders when you enter or exit specified commercial areas (e.g., Petrol Stations, Supermarkets, Hospitals).
+* **Processing:** Location coordinates are calculated **strictly on-device** using Android Location Services. Your real-time location is never tracked, stored on cloud servers, or shared with third parties.
 
 ---
 
-## 4. Security Measures
-We implement industry-standard security measures to safeguard your data, including local database isolation, permission-scoped Android execution sandboxes, and HTTPS encryption for any optional cloud sync endpoints.
+## 3. Advertising & In-App Purchases
+
+### A. Google Mobile Ads (AdMob)
+* Expense Book integrates Google Mobile Ads (`com.google.android.gms.ads`) to serve Banner, Interstitial, and Rewarded Video Ads.
+* Google AdMob may collect device identifiers (such as Advertising ID) and non-personal diagnostic data in accordance with Google's Privacy Policy.
+
+### B. "Remove Ads" In-App Purchase (`remove_ads`)
+* Users can make a one-time in-app purchase (`remove_ads` - $4.99) via Google Play Billing to permanently remove all banner, interstitial, and rewarded ads across the entire application.
 
 ---
 
-## 5. User Rights & Data Deletion
-You have the right to:
-1. Grant or revoke Camera, Storage, SMS, or Location permissions at any time via system settings.
-2. Export your expense history in standard CSV/PDF formats.
-3. Delete individual expenses, receipt attachments, or clear all app data permanently via Settings.
+## 4. Data Backup, Export & Portability
+* **Download Data:** Users can export their entire financial database and settings into a local JSON backup file (`myexpense_data_backup_<timestamp>.json`).
+* **Restore Data:** Users can import this backup file on any device to restore their records.
+* **User Sovereignty:** You have complete control over your data files and can save, transfer, or delete them at your discretion.
 
 ---
 
-## 6. Contact Us
-For any privacy questions or requests regarding your data, please contact:  
-- **Email:** privacy@myexpense.app  
-- **Website:** https://github.com/tafaisalkhan/my_expense
+## 5. Security & Data Retention
+* **Local Storage Security:** All application data is stored in isolated app storage protected by Android system security sandbox boundaries.
+* **Device Lock Protection:** Optional Fingerprint / Face ID / PIN security lock can be enabled to prevent unauthorized access to your expense records.
+* **Data Erasure:** You can flush all local data immediately by selecting "Sign Out" or "Delete Account" in the app settings.
+
+---
+
+## 6. Children's Privacy
+Expense Book does not knowingly collect or solicit personal information from children under the age of 13.
+
+---
+
+## 7. Changes to This Privacy Policy
+We may update our Privacy Policy periodically. Any changes will be posted on this page with an updated Effective Date.
+
+---
+
+## 8. Contact Us
+If you have any questions or suggestions regarding this Privacy Policy, please contact us at:  
+* **GitHub Repository:** [https://github.com/tafaisalkhan/expense_book.git](https://github.com/tafaisalkhan/expense_book.git)

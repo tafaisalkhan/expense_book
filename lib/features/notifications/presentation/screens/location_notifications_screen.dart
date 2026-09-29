@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
 import 'package:myexpence/features/notifications/domain/models/location_notification.dart';
 import 'package:myexpence/features/notifications/presentation/providers/location_notification_providers.dart';
@@ -13,38 +14,6 @@ class LocationNotificationsScreen extends ConsumerStatefulWidget {
 }
 
 class _LocationNotificationsScreenState extends ConsumerState<LocationNotificationsScreen> {
-  final _customPlaceController = TextEditingController();
-  LocationType _selectedType = LocationType.petrolPump;
-
-  @override
-  void dispose() {
-    _customPlaceController.dispose();
-    super.dispose();
-  }
-
-  void _simulateLocationLeave(String placeName, LocationType type) async {
-    final notifier = ref.read(locationNotificationProvider.notifier);
-    final notif = await notifier.userLeftLocation(placeName: placeName, type: type);
-
-    if (mounted) {
-      if (notif == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('🔇 "$placeName" is Muted. No notification generated.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('📍 Triggered notification for leaving $placeName (${type.label})!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    }
-  }
-
   void _showMapLocationPicker(BuildContext context) {
     context.push('/map-picker');
   }
@@ -124,142 +93,65 @@ class _LocationNotificationsScreenState extends ConsumerState<LocationNotificati
                       'Automated daily evening notification to remind you to log any left unrecorded expenses and approve or reject pending logs.',
                       style: TextStyle(fontSize: 12),
                     ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.indigo,
-                          side: BorderSide(color: Colors.indigo.shade300),
-                        ),
-                        onPressed: () {
-                          ref.read(locationNotificationProvider.notifier).triggerManualDailyReminder();
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Map Location Picker Trigger Button & Current Location Quick-Set
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () => _showMapLocationPicker(context),
+                    icon: const Icon(Icons.map, size: 18),
+                    label: const Text('🗺️ Select Map Target', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: const BorderSide(color: AppTheme.primaryColor, width: 1.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () async {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('📍 Fetching GPS location and setting geofence targets...')),
+                      );
+                      final success = await ref.read(locationNotificationProvider.notifier).autoSetGeofencesAtCurrentLocation();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).clearSnackBars();
+                        if (success) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('✅ Geofences set to current location! Proximity checked.')),
+                          );
+                        } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('🔔 Sent test End-of-Day Notification reminder!'),
-                              backgroundColor: Colors.indigo,
+                              content: Text('⚠️ GPS Failed! Please enable GPS Location services & permissions on your phone.'),
+                              backgroundColor: Colors.red,
                             ),
                           );
-                        },
-                        icon: const Icon(Icons.notifications_active, size: 16),
-                        label: const Text('Test End-of-Day Notification Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      ),
-                    ),
-                  ],
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.my_location, size: 18),
+                    label: const Text('📍 Set My Location', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  ),
                 ),
-              ),
+              ],
             ),
             const SizedBox(height: 20),
-
-            // Map Location Picker Trigger Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () => _showMapLocationPicker(context),
-                icon: const Icon(Icons.map),
-                label: const Text('🗺️ Select Location on Map (Set Geofence)', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Quick Location Simulation Testing Panel
-            Text(
-              'Simulate Leaving Location',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ActionChip(
-                          avatar: const Icon(Icons.local_gas_station, size: 16),
-                          label: const Text('Petrol Pump'),
-                          onPressed: () => _simulateLocationLeave('Petrol Pump', LocationType.petrolPump),
-                        ),
-                        ActionChip(
-                          avatar: const Icon(Icons.shopping_cart, size: 16),
-                          label: const Text('Super Market'),
-                          onPressed: () => _simulateLocationLeave('Super Market', LocationType.superMarket),
-                        ),
-                        ActionChip(
-                          avatar: const Icon(Icons.storefront, size: 16),
-                          label: const Text('Local Market'),
-                          onPressed: () => _simulateLocationLeave('Local Market', LocationType.localMarket),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-
-                    // Custom Location Input Form
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextField(
-                          controller: _customPlaceController,
-                          decoration: const InputDecoration(
-                            hintText: 'e.g. City Fuel, Daily Super Mart',
-                            labelText: 'Custom Place Name',
-                            isDense: true,
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<LocationType>(
-                                value: _selectedType,
-                                isDense: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'Category / Type',
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                ),
-                                items: LocationType.values.map((t) {
-                                  return DropdownMenuItem(value: t, child: Text(t.label, style: const TextStyle(fontSize: 12)));
-                                }).toList(),
-                                onChanged: (val) {
-                                  if (val != null) setState(() => _selectedType = val);
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.primaryColor,
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () {
-                                final name = _customPlaceController.text.trim();
-                                if (name.isNotEmpty) {
-                                  _simulateLocationLeave(name, _selectedType);
-                                  _customPlaceController.clear();
-                                }
-                              },
-                              icon: const Icon(Icons.send, size: 16),
-                              label: const Text('Trigger'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
 
             // Saved Map Geofences Section
             Text(
@@ -279,33 +171,56 @@ class _LocationNotificationsScreenState extends ConsumerState<LocationNotificati
                         separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final geo = savedGeofences[index];
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: CircleAvatar(
-                              backgroundColor: AppTheme.primaryColor.withOpacity(0.15),
-                              child: Icon(_getIconForType(geo.locationType), color: AppTheme.primaryColor),
-                            ),
-                            title: Text(geo.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text(
-                              '${geo.locationType.label} (${geo.locationType.defaultCategoryName}) • ${geo.radiusMeters.round()}m radius',
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  tooltip: 'Trigger Notification Reminder',
-                                  onPressed: () => _simulateLocationLeave(geo.name, geo.locationType),
-                                  icon: const Icon(Icons.notifications_active, size: 20, color: AppTheme.primaryColor),
-                                ),
-                                IconButton(
-                                  tooltip: 'Remove Geofence Zone',
-                                  icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                                  onPressed: () {
-                                    ref.read(locationNotificationProvider.notifier).deleteGeofenceTarget(geo.id);
-                                  },
-                                ),
-                              ],
+                          final double? liveDistance = (notifState.lastUserLat != null && notifState.lastUserLng != null)
+                              ? Geolocator.distanceBetween(notifState.lastUserLat!, notifState.lastUserLng!, geo.latitude, geo.longitude)
+                              : null;
+                          final bool isInsideLive = liveDistance != null && liveDistance <= geo.radiusMeters;
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: CircleAvatar(
+                                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
+                                child: Icon(_getIconForType(geo.locationType), color: AppTheme.primaryColor),
+                              ),
+                              title: Text(geo.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${geo.locationType.label} (${geo.locationType.defaultCategoryName}) • ${geo.radiusMeters.round()}m radius',
+                                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                  ),
+                                  if (liveDistance != null) ...[
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: isInsideLive ? Colors.green.shade100 : Colors.orange.shade100,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        isInsideLive
+                                            ? '🟢 Live: ${liveDistance.round()}m away (INSIDE ${geo.radiusMeters.round()}m range)'
+                                            : '🔴 Live: ${liveDistance.round()}m away (OUTSIDE ${geo.radiusMeters.round()}m range)',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: isInsideLive ? Colors.green.shade900 : Colors.orange.shade900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              trailing: IconButton(
+                                tooltip: 'Remove Geofence Zone',
+                                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                onPressed: () {
+                                  ref.read(locationNotificationProvider.notifier).deleteGeofenceTarget(geo.id);
+                                },
+                              ),
                             ),
                           );
                         },

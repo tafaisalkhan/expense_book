@@ -3,135 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy - MyExpense</title>
+    <title>Privacy Policy - Expense Book</title>
     <style>
-        :root {
-            --primary-color: #008080;
-            --text-color: #2c3e50;
-            --bg-color: #f8f9fa;
-            --card-bg: #ffffff;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.6;
-            color: var(--text-color);
-            background-color: var(--bg-color);
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 800px;
-            margin: 30px auto;
-            background: var(--card-bg);
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        }
-        h1 {
-            color: var(--primary-color);
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 12px;
-            margin-top: 0;
-        }
-        h2 {
-            color: var(--primary-color);
-            margin-top: 28px;
-            font-size: 1.3rem;
-        }
-        .meta {
-            font-size: 0.9rem;
-            color: #718096;
-            margin-bottom: 24px;
-        }
-        ul {
-            padding-left: 20px;
-        }
-        li {
-            margin-bottom: 8px;
-        }
-        .badge {
-            display: inline-block;
-            background: rgba(0, 128, 128, 0.1);
-            color: var(--primary-color);
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 0.85rem;
-        }
-        footer {
-            margin-top: 40px;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 20px;
-            font-size: 0.9rem;
-            color: #718096;
-            text-align: center;
-        }
-        a {
-            color: var(--primary-color);
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #1a73e8; border-bottom: 2px solid #1a73e8; padding-bottom: 10px; }
+        h2 { color: #202124; margin-top: 24px; }
+        .effective-date { font-weight: bold; color: #5f6368; }
+        .box { background: #f8f9fa; border-left: 4px solid #1a73e8; padding: 12px 16px; margin: 16px 0; border-radius: 4px; }
+        code { background: #e8eaed; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
     </style>
 </head>
 <body>
+    <h1>Privacy Policy for Expense Book</h1>
+    <p class="effective-date">Effective Date: September 29, 2026 | Application: Expense Book (com.myexpense.book)</p>
 
-<div class="container">
-    <h1>Privacy Policy</h1>
-    <div class="meta">
-        <strong>Application:</strong> MyExpense (<code>com.myexpense.app</code>) &nbsp;|&nbsp; 
-        <strong>Effective Date:</strong> September 25, 2026
+    <div class="box">
+        <strong>Offline-First Promise:</strong> Expense Book is designed with privacy at its core. All your expenses, budgets, profiles, and receipts are stored locally on your device by default.
     </div>
 
-    <p>At <strong>MyExpense</strong>, we prioritize user data privacy, security, and complete transparency. This Privacy Policy outlines how our application collects, processes, and protects your information when you use our mobile expense tracking application, OCR document scanner, SMS financial transaction categorizer, and map-based geofence location notifications.</p>
+    <h2>1. Overview</h2>
+    <p>Expense Book ("we", "our", or "us") respects your privacy. This policy details how our app handles data, permissions, and advertising for <code>com.myexpense.book</code>.</p>
 
-    <h2>1. Information Collection & Usage</h2>
+    <h2>2. Data Collection & Processing</h2>
+    <h3>A. Local Financial Data</h3>
+    <p>Expense records, categories, monthly budgets, and profile labels remain strictly inside a local SQLite database on your device and are never uploaded without your manual export action.</p>
 
-    <h3>A. Camera & Storage Access (OCR Receipt Scanner)</h3>
-    <ul>
-        <li><span class="badge">Purpose</span> Enables users to take photos of paper receipt slips, store bills, or attach PDF receipts for automated extraction of line items, amounts, merchant name, date, and time.</li>
-        <li><span class="badge">Data Protection</span> Optical character recognition is processed locally on your device. Captured images are stored securely in local device storage and are never sold or used for targeted advertising.</li>
-    </ul>
+    <h3>B. Google Authentication</h3>
+    <p>Google Account email and display name are used solely for identity verification during login via Firebase Auth.</p>
 
-    <h3>B. SMS Reading Permission (<code>RECEIVE_SMS</code>)</h3>
-    <ul>
-        <li><span class="badge">Purpose</span> Analyzes incoming financial transaction SMS notifications from verified banks and payment systems to automatically prepare draft expense entries for user review.</li>
-        <li><span class="badge">Data Protection</span> SMS parsing takes place entirely <strong>on your device</strong>. Non-financial SMS messages are discarded immediately. SMS contents are <strong>never transmitted</strong> to remote servers or third parties.</li>
-    </ul>
+    <h3>C. SMS Parsing Permissions (READ_SMS, RECEIVE_SMS)</h3>
+    <p>Used strictly on-device to auto-detect whitelisted bank transaction notifications with user confirmation. SMS text is never transmitted off your device.</p>
 
-    <h3>C. Location Services & Geofencing (<code>ACCESS_FINE_LOCATION</code>)</h3>
-    <ul>
-        <li><span class="badge">Purpose</span> Displays interactive OpenStreetMap location pickers, supports custom geofence pin creation (e.g. Petrol Stations, Supermarkets, Markets), and triggers local reminders upon departure.</li>
-        <li><span class="badge">Data Protection</span> Geofence coordinates remain stored locally in your device app state. Location data is never broadcasted to tracking networks.</li>
-    </ul>
+    <h3>D. Location Permissions (ACCESS_FINE_LOCATION)</h3>
+    <p>Used strictly on-device for location-based expense prompts when visiting commercial areas (petrol stations, supermarkets). Coordinates are never tracked or stored externally.</p>
 
-    <h3>D. Local Data Storage & Control</h3>
-    <ul>
-        <li>All expense records, budget limits, category assignments, and family member tags are stored in encrypted SQLite storage on your physical device.</li>
-        <li>You retain complete ownership of your data with options to edit, export to CSV/PDF, or purge all records at any time.</li>
-    </ul>
+    <h2>3. Advertising & In-App Purchase</h2>
+    <p>The app uses Google AdMob (<code>com.google.android.gms.ads</code>) for ads. Users can purchase the <strong>Remove Ads</strong> product (<code>remove_ads</code> - $4.99) to disable all advertising permanently.</p>
 
-    <h2>2. Data Sharing & Third Parties</h2>
-    <p>We do <strong>NOT</strong> sell, trade, rent, or commercialize your personal or financial data under any circumstances. External map tiles are rendered using OpenStreetMap public tile servers without transmitting user identity or financial details.</p>
-
-    <h2>3. Security Standards</h2>
-    <p>MyExpense incorporates strict platform security features, including local database isolation, permission-sandboxed runtime Android rules, and HTTPS transport layer security for optional network requests.</p>
-
-    <h2>4. User Rights & Data Deletion</h2>
-    <p>You can manage permissions (Camera, SMS, Location) anytime through Android OS settings. You may permanently delete your data by clearing app data or uninstalling the app.</p>
-
-    <h2>5. Contact Us</h2>
-    <p>For any privacy inquiries regarding MyExpense, please contact:</p>
-    <ul>
-        <li>Email: <a href="mailto:privacy@myexpense.app">privacy@myexpense.app</a></li>
-        <li>GitHub Repository: <a href="https://github.com/tafaisalkhan/my_expense" target="_blank">https://github.com/tafaisalkhan/my_expense</a></li>
-    </ul>
-
-    <footer>
-        &copy; 2026 MyExpense Application. All rights reserved.
-    </footer>
-</div>
-
+    <h2>4. Contact</h2>
+    <p>GitHub Repository: <a href="https://github.com/tafaisalkhan/expense_book.git">https://github.com/tafaisalkhan/expense_book.git</a></p>
 </body>
 </html>

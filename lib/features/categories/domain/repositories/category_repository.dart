@@ -5,5 +5,9 @@ abstract class ICategoryRepository {
   Future<Category?> getCategoryById(String id);
   Future<List<Subcategory>> getSubcategories(String categoryId, {bool activeOnly = true});
   Future<void> addCategory(Category category);
+  Future<void> updateCategory(Category category);
   Future<void> addSubcategory(Subcategory subcategory);
+  Future<void> updateSubcategory(Subcategory subcategory);
+  Future<bool> deleteSubcategory(String subcategoryId);
+  Future<int> getExpenseCountForSubcategory(String subcategoryId);
 }

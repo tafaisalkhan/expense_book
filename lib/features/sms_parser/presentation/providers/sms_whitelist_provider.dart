@@ -1,22 +1,29 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:myexpence/features/sms_parser/domain/services/sms_parser_service.dart';
 
 class SmsWhitelistNotifier extends StateNotifier<List<String>> {
-  static const String _keyWhitelist = 'sms_whitelisted_senders';
+  static const String _keyWhitelist = 'sms_whitelisted_senders_v2';
+  static const String _keyOldWhitelist = 'sms_whitelisted_senders';
 
-  SmsWhitelistNotifier() : super(SmsParserService.defaultAllowedSenders) {
+  static const List<String> defaultSenders = [];
+
+  SmsWhitelistNotifier() : super(const []) {
     _loadWhitelist();
   }
 
   Future<void> _loadWhitelist() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList(_keyWhitelist);
-    if (saved != null) {
-      state = saved;
-    } else {
-      state = const [];
+    if (prefs.containsKey(_keyOldWhitelist)) {
+      await prefs.remove(_keyOldWhitelist);
     }
+    final saved = prefs.getStringList(_keyWhitelist);
+    state = saved ?? const [];
+  }
+
+  Future<void> clearAll() async {
+    state = const [];
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_keyWhitelist, const []);
   }
 
   Future<void> addSender(String sender) async {
@@ -38,9 +45,9 @@ class SmsWhitelistNotifier extends StateNotifier<List<String>> {
   }
 
   Future<void> resetToDefaults() async {
-    state = const [];
+    state = defaultSenders;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_keyWhitelist, const []);
+    await prefs.setStringList(_keyWhitelist, defaultSenders);
   }
 }
 

@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:path/path.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:myexpence/core/database/database_migrations.dart';
 
@@ -25,12 +24,17 @@ class AppDatabase {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, _dbName);
 
-    return await openDatabase(
+    final db = await openDatabase(
       path,
       version: _dbVersion,
       onCreate: DatabaseMigrations.onCreate,
       onUpgrade: DatabaseMigrations.onUpgrade,
     );
+
+    // Sync any newly added default categories/subcategories into SQLite
+    await DatabaseMigrations.ensureDefaultCategories(db);
+
+    return db;
   }
 
   Future<void> clearAllData() async {
@@ -40,6 +44,12 @@ class AppDatabase {
     await db.delete('receipts');
     await db.delete('zero_spend_confirmations');
     await db.delete('people');
+
+    // Re-seed initial default family member 'Me'
+    await db.execute('''
+      INSERT OR IGNORE INTO people (id, name, isStudent, monthlyBudget, createdAt)
+      VALUES (1, 'Me', 0, NULL, '${DateTime.now().toIso8601String()}')
+    ''');
   }
 
   Future<void> close() async {

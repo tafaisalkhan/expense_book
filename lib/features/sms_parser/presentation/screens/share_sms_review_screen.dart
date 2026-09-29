@@ -92,22 +92,16 @@ class _ShareSmsReviewScreenState extends ConsumerState<ShareSmsReviewScreen> {
   }
 
   void _startSmsListener() {
-    ref.read(smsListenerServiceProvider).startListening(
+    final smsListener = ref.read(smsListenerServiceProvider);
+    smsListener.startListening(
       ref,
       onWhitelistedSmsReceived: (parsed) {
-        if (mounted) {
-          setState(() {
-            _smsTextController.text = parsed.rawSms;
-            if (parsed.sender != null) _senderController.text = parsed.sender!;
-            _runParseSms(parsed.rawSms, sender: parsed.sender);
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('⚡ Whitelisted SMS Received from ${parsed.sender}! Rs ${parsed.amount.toStringAsFixed(2)} at ${parsed.merchant ?? 'Store'}'),
-              backgroundColor: Colors.teal,
-            ),
-          );
-        }
+        if (!mounted) return;
+        setState(() {
+          _smsTextController.text = parsed.rawSms;
+          _senderController.text = parsed.sender ?? '';
+          _runParseSms(parsed.rawSms, sender: parsed.sender);
+        });
       },
     );
   }
@@ -233,7 +227,7 @@ class _ShareSmsReviewScreenState extends ConsumerState<ShareSmsReviewScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Parse Shared Bank SMS'),
+        title: const Text('Parse Shared SMS'),
         actions: [
           IconButton(
             icon: const Icon(Icons.close),
@@ -727,23 +721,49 @@ class _ShareSmsReviewScreenState extends ConsumerState<ShareSmsReviewScreen> {
                           builder: (context, ref, _) {
                             final whitelist = ref.watch(smsWhitelistProvider);
                             if (whitelist.isEmpty) {
-                              return const Text('No senders whitelisted yet. Enter a phone number above to start auto-catching SMS.', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey));
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 4.0),
+                                child: Text(
+                                  'No whitelisted numbers added yet. Enter a phone number or sender above to enable auto-catching.',
+                                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey),
+                                ),
+                              );
                             }
-                            return Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: whitelist.map((sender) {
-                                return Chip(
-                                  avatar: const Icon(Icons.verified, size: 14, color: Colors.teal),
-                                  label: Text(sender, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                  onDeleted: () {
-                                    ref.read(smsWhitelistProvider.notifier).removeSender(sender);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Removed "$sender" from Whitelist.')),
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: whitelist.map((sender) {
+                                    return Chip(
+                                      avatar: const Icon(Icons.verified, size: 14, color: Colors.teal),
+                                      label: Text(sender, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                      onDeleted: () {
+                                        ref.read(smsWhitelistProvider.notifier).removeSender(sender);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Removed "$sender" from Whitelist.')),
+                                        );
+                                      },
                                     );
-                                  },
-                                );
-                              }).toList(),
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 4),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                                    onPressed: () {
+                                      ref.read(smsWhitelistProvider.notifier).clearAll();
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Cleared all whitelisted senders.')),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.delete_sweep, size: 14, color: Colors.red),
+                                    label: const Text('Clear All', style: TextStyle(fontSize: 11, color: Colors.red)),
+                                  ),
+                                ),
+                              ],
                             );
                           },
                         ),

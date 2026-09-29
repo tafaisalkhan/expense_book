@@ -168,30 +168,6 @@ class _GeofenceMapScreenState extends ConsumerState<GeofenceMapScreen> {
                   label: Text('➕ Add Expense for $title', style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
-              const SizedBox(height: 10),
-
-              // Button 2: Trigger Location Notification
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    ref.read(locationNotificationProvider.notifier).userLeftLocation(
-                          placeName: target?.name ?? title,
-                          type: locationType,
-                        );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('🔔 Notification Sent: "Visited $title (${locationType.label})"!'),
-                        backgroundColor: Colors.teal,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.notifications_active),
-                  label: const Text('🔔 Test Location Notification', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
             ],
           ),
         );
@@ -268,7 +244,7 @@ class _GeofenceMapScreenState extends ConsumerState<GeofenceMapScreen> {
                       // Real Map Tiles (OpenStreetMap - Google Map equivalent streets, petrol pumps & places)
                       TileLayer(
                         urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.myexpense.app',
+                        userAgentPackageName: 'com.myexpense.book',
                       ),
 
                       // Geofence Radius Circle Layer
@@ -501,10 +477,36 @@ class _GeofenceMapScreenState extends ConsumerState<GeofenceMapScreen> {
                         ),
                         style: const TextStyle(fontSize: 12),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Row(
                         children: [
                           const Text('Radius:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [20, 50, 100, 200, 500].map((r) {
+                                  final isSelected = _radiusMeters.round() == r;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 6.0),
+                                    child: ChoiceChip(
+                                      label: Text('${r}m', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : AppTheme.primaryColor)),
+                                      selected: isSelected,
+                                      selectedColor: AppTheme.primaryColor,
+                                      backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+                                      visualDensity: VisualDensity.compact,
+                                      onSelected: (_) => setState(() => _radiusMeters = r.toDouble()),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
                           Expanded(
                             child: Slider(
                               value: _radiusMeters,

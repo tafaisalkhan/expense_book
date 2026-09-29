@@ -598,22 +598,4 @@ class DashboardScreen extends ConsumerWidget {
       ),
     );
   }
-
-  Color _getClassificationColor(ExpenseClassification classification) {
-    switch (classification) {
-      case ExpenseClassification.required:
-        return AppTheme.requiredColor;
-      case ExpenseClassification.optional:
-        return AppTheme.optionalColor;
-    }
-  }
-
-  IconData _getClassificationIcon(ExpenseClassification classification) {
-    switch (classification) {
-      case ExpenseClassification.required:
-        return Icons.lock_clock;
-      case ExpenseClassification.optional:
-        return Icons.local_activity;
-    }
-  }
 }

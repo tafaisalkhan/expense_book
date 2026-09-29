@@ -17,7 +17,7 @@ class DraggableFloatingActionButton extends StatefulWidget {
     this.tooltip,
     this.backgroundColor,
     this.foregroundColor,
-    this.initialBottom = 20,
+    this.initialBottom = 24,
     this.initialRight = 16,
   });
 
@@ -26,76 +26,165 @@ class DraggableFloatingActionButton extends StatefulWidget {
 }
 
 class _DraggableFloatingActionButtonState extends State<DraggableFloatingActionButton> {
-  Offset? _position;
+  Offset _offset = Offset.zero;
   bool _isDragging = false;
   double _dragDistance = 0;
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final screenSize = mediaQuery.size;
-    final padding = mediaQuery.padding;
     const fabSize = 56.0;
 
-    // Default starting position: bottom right relative to screen padding
-    final defaultX = screenSize.width - fabSize - widget.initialRight;
-    final defaultY = screenSize.height - fabSize - widget.initialBottom - padding.bottom;
+    return Positioned(
+      right: widget.initialRight,
+      bottom: widget.initialBottom,
+      child: Transform.translate(
+        offset: _offset,
+        child: GestureDetector(
+          onPanStart: (_) {
+            _dragDistance = 0;
+            setState(() {
+              _isDragging = true;
+            });
+          },
+          onPanUpdate: (details) {
+            _dragDistance += details.delta.distance;
+            setState(() {
+              _offset += details.delta;
+            });
+          },
+          onPanEnd: (_) {
+            setState(() {
+              _isDragging = false;
+            });
+            if (_dragDistance < 10) {
+              widget.onPressed();
+            }
+          },
+          onTap: widget.onPressed,
+          child: AnimatedScale(
+            scale: _isDragging ? 1.15 : 1.0,
+            duration: const Duration(milliseconds: 100),
+            child: Material(
+              elevation: _isDragging ? 12.0 : 6.0,
+              shape: const CircleBorder(),
+              color: widget.backgroundColor ?? AppTheme.primaryColor,
+              shadowColor: Colors.black45,
+              child: SizedBox(
+                width: fabSize,
+                height: fabSize,
+                child: Center(
+                  child: Icon(
+                    widget.icon,
+                    color: widget.foregroundColor ?? Colors.white,
+                    size: 28,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-    final minX = 12.0;
-    final maxX = screenSize.width - fabSize - 12.0;
-    final minY = padding.top + 12.0;
-    final maxY = screenSize.height - padding.bottom - fabSize - 12.0;
+/// Floating Draggable & Moveable Save Button that can be placed anywhere on screen
+class DraggableSaveButton extends StatefulWidget {
+  final VoidCallback onPressed;
+  final String label;
+  final IconData icon;
+  final bool isSubmitting;
+  final double initialBottom;
+  final double initialRight;
 
-    double currentX = _position?.dx ?? defaultX;
-    double currentY = _position?.dy ?? defaultY;
+  const DraggableSaveButton({
+    super.key,
+    required this.onPressed,
+    this.label = 'Save',
+    this.icon = Icons.check_circle_outline,
+    this.isSubmitting = false,
+    this.initialBottom = 24,
+    this.initialRight = 16,
+  });
 
-    // Keep position clamped within screen bounds
-    currentX = currentX.clamp(minX, maxX);
-    currentY = currentY.clamp(minY, maxY);
+  @override
+  State<DraggableSaveButton> createState() => _DraggableSaveButtonState();
+}
+
+class _DraggableSaveButtonState extends State<DraggableSaveButton> {
+  Offset _offset = Offset.zero;
+  bool _isDragging = false;
+  double _dragDistance = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    const buttonHeight = 52.0;
 
     return Positioned(
-      left: currentX,
-      top: currentY,
-      child: GestureDetector(
-        onPanStart: (_) {
-          _dragDistance = 0;
-          setState(() {
-            _isDragging = true;
-          });
-        },
-        onPanUpdate: (details) {
-          _dragDistance += details.delta.distance;
-          setState(() {
-            double newX = (currentX + details.delta.dx).clamp(minX, maxX);
-            double newY = (currentY + details.delta.dy).clamp(minY, maxY);
-            _position = Offset(newX, newY);
-          });
-        },
-        onPanEnd: (_) {
-          setState(() {
-            _isDragging = false;
-          });
-          if (_dragDistance < 10) {
-            widget.onPressed();
-          }
-        },
-        onTap: widget.onPressed,
-        child: AnimatedScale(
-          scale: _isDragging ? 1.12 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          child: Material(
-            elevation: _isDragging ? 10.0 : 6.0,
-            shape: const CircleBorder(),
-            color: widget.backgroundColor ?? AppTheme.primaryColor,
-            shadowColor: Colors.black45,
-            child: SizedBox(
-              width: fabSize,
-              height: fabSize,
-              child: Center(
-                child: Icon(
-                  widget.icon,
-                  color: widget.foregroundColor ?? Colors.white,
-                  size: 28,
+      right: widget.initialRight,
+      bottom: widget.initialBottom,
+      child: Transform.translate(
+        offset: _offset,
+        child: GestureDetector(
+          onPanStart: (_) {
+            _dragDistance = 0;
+            setState(() {
+              _isDragging = true;
+            });
+          },
+          onPanUpdate: (details) {
+            _dragDistance += details.delta.distance;
+            setState(() {
+              _offset += details.delta;
+            });
+          },
+          onPanEnd: (_) {
+            setState(() {
+              _isDragging = false;
+            });
+            if (_dragDistance < 10 && !widget.isSubmitting) {
+              widget.onPressed();
+            }
+          },
+          onTap: widget.isSubmitting ? null : widget.onPressed,
+          child: AnimatedScale(
+            scale: _isDragging ? 1.08 : 1.0,
+            duration: const Duration(milliseconds: 100),
+            child: Material(
+              elevation: _isDragging ? 12.0 : 8.0,
+              borderRadius: BorderRadius.circular(26),
+              color: AppTheme.primaryColor,
+              shadowColor: Colors.black54,
+              child: Container(
+                height: buttonHeight,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.isSubmitting)
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                      )
+                    else
+                      Icon(widget.icon, color: Colors.white, size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      widget.label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

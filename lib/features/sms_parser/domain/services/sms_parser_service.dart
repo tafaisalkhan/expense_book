@@ -25,16 +25,71 @@ class SmsParseResult {
 }
 
 class SmsParserService {
-  /// Empty by default. User must explicitly add bank phone numbers / sender IDs to their SMS Whitelist.
-  static const List<String> defaultAllowedSenders = [];
+  /// Default whitelisted bank sender IDs and numeric shortcodes (including 9220, 8257, 8558, 8222, 8008, 8228, 4250, 3737, etc.)
+  static const List<String> defaultAllowedSenders = [
+    '9220',
+    '8257',
+    '8558',
+    '8222',
+    '8008',
+    '8228',
+    '8444',
+    '4250',
+    '3737',
+    'MeezanBank',
+    'Meezan',
+    'MezanBank',
+    'HBL',
+    'UBL',
+    'MCB',
+    'BAHL',
+    'BankAlfalah',
+    'Alfalah',
+    'AskariBank',
+    'StandardChartered',
+    'SCB',
+    'FaysalBank',
+    'AlliedBank',
+    'ABL',
+    'BOP',
+    'BankOfPunjab',
+    'JSBank',
+    'BankIslami',
+    'AlBaraka',
+    'HabibMetro',
+    'SilkBank',
+    'SummitBank',
+    'JazzCash',
+    'Easypaisa',
+    'SadaPay',
+    'NayaPay',
+  ];
 
-  /// Checks if a given sender ID or number is in the allowed senders list.
+  /// Checks if a given sender ID or phone number is in built-in default bank list OR user custom whitelist.
   static bool isAllowedSender(String? sender, {List<String>? customAllowedSenders}) {
-    if (sender == null || sender.trim().isEmpty) return true;
-    final allowed = customAllowedSenders ?? defaultAllowedSenders;
+    if (sender == null || sender.trim().isEmpty) return false;
     final cleanSender = sender.trim().toLowerCase();
 
-    return allowed.any((s) => cleanSender.contains(s.toLowerCase()));
+    // 1. Check built-in default bank senders & shortcodes
+    final isDefault = defaultAllowedSenders.any((s) {
+      final cleanAllowed = s.trim().toLowerCase();
+      return cleanSender == cleanAllowed ||
+             cleanSender.contains(cleanAllowed) ||
+             cleanAllowed.contains(cleanSender);
+    });
+    if (isDefault) return true;
+
+    // 2. Check user's custom whitelisted senders
+    if (customAllowedSenders != null && customAllowedSenders.isNotEmpty) {
+      return customAllowedSenders.any((s) {
+        final cleanAllowed = s.trim().toLowerCase();
+        return cleanSender == cleanAllowed ||
+               cleanSender.contains(cleanAllowed) ||
+               cleanAllowed.contains(cleanSender);
+      });
+    }
+
+    return false;
   }
 
   /// Extracts sender ID from SMS headers if embedded in raw text (e.g., "From: MeezanBank").

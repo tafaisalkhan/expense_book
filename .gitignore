@@ -36,7 +36,7 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
-# Android build artifacts
+# Android build artifacts & local properties
 /android/app/debug
 /android/app/profile
 /android/app/release
@@ -44,12 +44,26 @@ app.*.map.json
 /android/local.properties
 /android/captures/
 .gradle/
+*.keystore
+*.jks
+key.properties
 
-# Sensitive Credentials & Firebase Service Accounts
+# Sensitive Credentials, Firebase Service Accounts & Environment Files
 assets/config/firebase_service_account.json
-*_service_account*.json
-*credentials*.json
-*.pem
-*.key
 google-services.json
 GoogleService-Info.plist
+*_service_account*.json
+*credentials*.json
+*.env
+*.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+
+# Local Data Backup & Temp Archives
+myexpense_local_backup.zip
+*.json.backup
+*.zip

@@ -71,8 +71,56 @@ class SqliteCategoryRepository implements ICategoryRepository {
   }
 
   @override
+  Future<void> updateCategory(Category category) async {
+    final db = await appDatabase.database;
+    await db.update(
+      'categories',
+      category.toMap(),
+      where: 'id = ? OR uuid = ?',
+      whereArgs: [category.id, category.uuid ?? category.id],
+    );
+  }
+
+  @override
   Future<void> addSubcategory(Subcategory subcategory) async {
     final db = await appDatabase.database;
     await db.insert('subcategories', subcategory.toMap());
+  }
+
+  @override
+  Future<void> updateSubcategory(Subcategory subcategory) async {
+    final db = await appDatabase.database;
+    await db.update(
+      'subcategories',
+      subcategory.toMap(),
+      where: 'id = ? OR uuid = ?',
+      whereArgs: [subcategory.id, subcategory.uuid ?? subcategory.id],
+    );
+  }
+
+  @override
+  Future<int> getExpenseCountForSubcategory(String subcategoryId) async {
+    final db = await appDatabase.database;
+    final res = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM expenses WHERE (subcategoryId = ? OR subcategoryId = (SELECT id FROM subcategories WHERE uuid = ?)) AND isDeleted = 0',
+      [subcategoryId, subcategoryId],
+    );
+    if (res.isEmpty) return 0;
+    return (res.first['count'] as num?)?.toInt() ?? 0;
+  }
+
+  @override
+  Future<bool> deleteSubcategory(String subcategoryId) async {
+    final db = await appDatabase.database;
+    final count = await getExpenseCountForSubcategory(subcategoryId);
+    if (count > 0) {
+      return false; // Has expenses linked, deletion blocked!
+    }
+    await db.delete(
+      'subcategories',
+      where: 'id = ? OR uuid = ?',
+      whereArgs: [subcategoryId, subcategoryId],
+    );
+    return true;
   }
 }

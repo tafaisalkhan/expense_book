@@ -124,13 +124,13 @@ class DatabaseMigrations {
     await db.execute('CREATE INDEX idx_budgets_period ON budgets(period);');
 
     // Seed Categories & Subcategories from JSON
-    await _seedCategoriesFromAsset(db);
+    await ensureDefaultCategories(db);
 
     // Seed Initial Family Profiles
     await _seedDefaultPeople(db);
   }
 
-  static Future<void> _seedCategoriesFromAsset(Database db) async {
+  static Future<void> ensureDefaultCategories(Database db) async {
     try {
       final jsonString = await rootBundle.loadString('assets/config/default_categories.json');
       final List<dynamic> catList = json.decode(jsonString);
@@ -140,28 +140,36 @@ class DatabaseMigrations {
 
       for (final cat in catList) {
         final catId = cat['id'] as String;
-        batch.insert('categories', {
-          'id': catId,
-          'uuid': uuidGen.v4(),
-          'name': cat['name'],
-          'icon': cat['icon'],
-          'defaultClassification': cat['defaultClassification'],
-          'isSystem': 1,
-          'isActive': 1,
-          'sortOrder': cat['sortOrder'],
-        });
+        batch.insert(
+          'categories',
+          {
+            'id': catId,
+            'uuid': uuidGen.v4(),
+            'name': cat['name'],
+            'icon': cat['icon'],
+            'defaultClassification': cat['defaultClassification'],
+            'isSystem': 1,
+            'isActive': 1,
+            'sortOrder': cat['sortOrder'],
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
 
         final subList = cat['subcategories'] as List<dynamic>? ?? [];
         for (final sub in subList) {
-          batch.insert('subcategories', {
-            'id': sub['id'],
-            'uuid': uuidGen.v4(),
-            'categoryId': catId,
-            'name': sub['name'],
-            'defaultClassification': sub['defaultClassification'],
-            'isActive': 1,
-            'sortOrder': sub['sortOrder'],
-          });
+          batch.insert(
+            'subcategories',
+            {
+              'id': sub['id'],
+              'uuid': uuidGen.v4(),
+              'categoryId': catId,
+              'name': sub['name'],
+              'defaultClassification': sub['defaultClassification'],
+              'isActive': 1,
+              'sortOrder': sub['sortOrder'],
+            },
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
         }
       }
 
@@ -178,9 +186,6 @@ class DatabaseMigrations {
 
     final defaultPeople = [
       {'name': 'Me', 'relationship': 'Self'},
-      {'name': 'Wife', 'relationship': 'Spouse'},
-      {'name': 'Ahmed', 'relationship': 'Son', 'schoolName': 'ABC School', 'grade': 'Grade 5'},
-      {'name': 'Sara', 'relationship': 'Daughter', 'schoolName': 'ABC School', 'grade': 'Grade 2'},
     ];
 
     for (final person in defaultPeople) {

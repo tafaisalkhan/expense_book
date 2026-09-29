@@ -19,6 +19,26 @@ class Subcategory {
     required this.sortOrder,
   });
 
+  Subcategory copyWith({
+    String? id,
+    String? uuid,
+    String? categoryId,
+    String? name,
+    ExpenseClassification? defaultClassification,
+    bool? isActive,
+    int? sortOrder,
+  }) {
+    return Subcategory(
+      id: id ?? this.id,
+      uuid: uuid ?? this.uuid,
+      categoryId: categoryId ?? this.categoryId,
+      name: name ?? this.name,
+      defaultClassification: defaultClassification ?? this.defaultClassification,
+      isActive: isActive ?? this.isActive,
+      sortOrder: sortOrder ?? this.sortOrder,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
