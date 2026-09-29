@@ -58,6 +58,7 @@ class LocationNotificationNotifier extends StateNotifier<LocationNotificationSta
 
   final FlutterLocalNotificationsPlugin _localNotifs = FlutterLocalNotificationsPlugin();
   StreamSubscription<Position>? _positionStreamSub;
+  Timer? _periodicGeofenceTimer;
   final Set<String> _insideGeofences = {};
 
   Future<void> _saveInsideGeofences() async {
@@ -156,6 +157,14 @@ class LocationNotificationNotifier extends StateNotifier<LocationNotificationSta
         _checkGeofenceProximity(pos.latitude, pos.longitude);
       });
 
+      // Periodic 1-minute geofence proximity check scheduler
+      _periodicGeofenceTimer?.cancel();
+      _periodicGeofenceTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted) {
+          checkProximityNow();
+        }
+      });
+
       // Also trigger an immediate proximity check right away
       await checkProximityNow();
     } catch (_) {}
@@ -229,6 +238,8 @@ class LocationNotificationNotifier extends StateNotifier<LocationNotificationSta
 
   @override
   void dispose() {
+    _periodicGeofenceTimer?.cancel();
+    _periodicGeofenceTimer = null;
     _positionStreamSub?.cancel();
     _positionStreamSub = null;
     super.dispose();
@@ -632,25 +643,14 @@ class LocationNotificationNotifier extends StateNotifier<LocationNotificationSta
       );
       const details = NotificationDetails(android: androidDetails);
 
-      try {
-        await _localNotifs.periodicallyShow(
-          8888,
-          '🌙 Daily End of Day Expense Check',
-          'Have any left expenses for today? Open MyExpense to add them or approve/reject pending items.',
-          RepeatInterval.daily,
-          details,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        );
-      } catch (_) {
-        await _localNotifs.periodicallyShow(
-          8888,
-          '🌙 Daily End of Day Expense Check',
-          'Have any left expenses for today? Open MyExpense to add them or approve/reject pending items.',
-          RepeatInterval.daily,
-          details,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        );
-      }
+      await _localNotifs.periodicallyShow(
+        8888,
+        '🌙 Daily End of Day Expense Check',
+        'Have any left expenses for today? Open MyExpense to add them or approve/reject pending items.',
+        RepeatInterval.daily,
+        details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
     } catch (_) {}
   }
 
