@@ -51,5 +51,6 @@ You have the right to:
 
 ## 6. Contact Us
 For any privacy questions or requests regarding your data, please contact:  
-- **Email:** privacy@myexpense.app  
-- **Website:** https://github.com/tafaisalkhan/my_expense
+- **Developer:** Muhammad Faisal Khan  
+- **Email:** android.nextlevel@gmail.com  
+- **Website:** https://github.com/tafaisalkhan/expense_book.git

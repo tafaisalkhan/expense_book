@@ -1,9 +1,10 @@
 # Privacy Policy for Expense Book
 
-**Effective Date:** September 29, 2026  
+**Effective Date:** October 2, 2026  
 **Application Name:** Expense Book  
-**Package Name:** `com.myexpense.book`  
-**Developer:** Tafaisalkhan  
+**App Name:** `My Expence Book`  
+**Developer:** Muhammad Faisal Khan  
+**Contact Email:** android.nextlevel@gmail.com  
 
 ---
 
@@ -73,4 +74,6 @@ We may update our Privacy Policy periodically. Any changes will be posted on thi
 
 ## 8. Contact Us
 If you have any questions or suggestions regarding this Privacy Policy, please contact us at:  
+* **Developer:** Muhammad Faisal Khan  
+* **Email:** [android.nextlevel@gmail.com](mailto:android.nextlevel@gmail.com)  
 * **GitHub Repository:** [https://github.com/tafaisalkhan/expense_book.git](https://github.com/tafaisalkhan/expense_book.git)

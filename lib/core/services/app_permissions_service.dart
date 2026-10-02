@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -12,6 +14,8 @@ class AppPermissionsService {
   static Future<void> requestAllStartupPermissions(WidgetRef ref, {dynamic context, bool forceRefresh = false}) async {
     if (_hasPromptedOnStartup && !forceRefresh) return;
     _hasPromptedOnStartup = true;
+
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
 
     try {
       // 1. Check & Request Location Permission (GPS & Geofencing)

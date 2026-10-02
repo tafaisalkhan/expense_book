@@ -665,7 +665,7 @@ class _ShareSmsReviewScreenState extends ConsumerState<ShareSmsReviewScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'When an SMS arrives from any of your Whitelisted Numbers below, MyExpense will automatically capture the SMS and prompt you to log the expense.',
+                          'When an SMS arrives from any of your Whitelisted Numbers below, My Expence Book will automatically capture the SMS and prompt you to log the expense.',
                           style: TextStyle(fontSize: 11, color: Colors.grey),
                         ),
                         const SizedBox(height: 12),

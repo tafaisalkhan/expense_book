@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -53,6 +55,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> with WidgetsB
   }
 
   Future<void> _checkInitialSmsNotification() async {
+    if (kIsWeb || (!Platform.isAndroid)) return;
     try {
       final initialSms = await SmsListenerService.getInitialNotificationSms();
       if (initialSms != null && mounted) {
@@ -70,6 +73,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> with WidgetsB
   }
 
   void _initSharedIntentListener() {
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
     try {
       // For sharing images/files while app is running/backgrounded
       _intentDataStreamSubscription =

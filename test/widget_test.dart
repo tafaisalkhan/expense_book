@@ -16,6 +16,6 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Welcome to MyExpense'), findsOneWidget);
+    expect(find.text('Welcome to My Expence Book'), findsOneWidget);
   });
 }

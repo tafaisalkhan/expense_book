@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
 
@@ -31,25 +33,28 @@ class AdState {
 }
 
 class AdNotifier extends StateNotifier<AdState> {
+  static const String removeAdsProductId = 'remove_ads';
+  static const String _prefKeyAdsRemoved = 'ads_removed_product_v1';
+  StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
+
   AdNotifier() : super(const AdState()) {
     _loadAdState();
+    _initInAppPurchase();
   }
 
-  static const String _prefKeyAdsRemoved = 'ads_removed_product_v1';
-
   static String get interstitialAdUnitId {
-    if (Platform.isAndroid) {
+    if (!kIsWeb && Platform.isAndroid) {
       return 'ca-app-pub-1852108665659812/6272840780'; // Production Interstitial Ad ID
-    } else if (Platform.isIOS) {
+    } else if (!kIsWeb && Platform.isIOS) {
       return 'ca-app-pub-3940256099942544/4411468910';
     }
     return 'ca-app-pub-1852108665659812/6272840780';
   }
 
   static String get rewardedAdUnitId {
-    if (Platform.isAndroid) {
+    if (!kIsWeb && Platform.isAndroid) {
       return 'ca-app-pub-1852108665659812/7203527509'; // Production Rewarded Ad ID
-    } else if (Platform.isIOS) {
+    } else if (!kIsWeb && Platform.isIOS) {
       return 'ca-app-pub-3940256099942544/1712485313';
     }
     return 'ca-app-pub-1852108665659812/7203527509';
@@ -63,8 +68,61 @@ class AdNotifier extends StateNotifier<AdState> {
     } catch (_) {}
   }
 
+  void _initInAppPurchase() {
+    if (kIsWeb) return;
+    try {
+      final Stream<List<PurchaseDetails>> purchaseUpdated = InAppPurchase.instance.purchaseStream;
+      _purchaseSub = purchaseUpdated.listen(
+        (purchaseDetailsList) {
+          _listenToPurchaseUpdated(purchaseDetailsList);
+        },
+        onDone: () => _purchaseSub?.cancel(),
+        onError: (error) {
+          debugPrint('InAppPurchase stream notice: $error');
+        },
+      );
+    } catch (e) {
+      debugPrint('InAppPurchase init notice: $e');
+    }
+  }
+
+  Future<void> _listenToPurchaseUpdated(List<PurchaseDetails> purchaseDetailsList) async {
+    for (final purchaseDetails in purchaseDetailsList) {
+      if (purchaseDetails.productID == removeAdsProductId) {
+        if (purchaseDetails.status == PurchaseStatus.purchased ||
+            purchaseDetails.status == PurchaseStatus.restored) {
+          if (purchaseDetails.pendingCompletePurchase) {
+            await InAppPurchase.instance.completePurchase(purchaseDetails);
+          }
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_prefKeyAdsRemoved, true);
+          state = state.copyWith(isAdsRemoved: true);
+        }
+      }
+    }
+  }
+
   /// Purchase `remove_ads` In-App Purchase product (Google Play Product ID: `remove_ads`)
   Future<bool> purchaseRemoveAds() async {
+    try {
+      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+        final bool isAvailable = await InAppPurchase.instance.isAvailable();
+        if (isAvailable) {
+          final ProductDetailsResponse response =
+              await InAppPurchase.instance.queryProductDetails({removeAdsProductId});
+          if (response.error == null && response.productDetails.isNotEmpty) {
+            final ProductDetails productDetails = response.productDetails.first;
+            final PurchaseParam purchaseParam = PurchaseParam(productDetails: productDetails);
+            await InAppPurchase.instance.buyNonConsumable(purchaseParam: purchaseParam);
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Google Play In-App Purchase billing notice: $e');
+    }
+
+    // Direct fallback (e.g. debug mode / test emulator / offline)
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_prefKeyAdsRemoved, true);
@@ -73,6 +131,23 @@ class AdNotifier extends StateNotifier<AdState> {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Restore Google Play In-App Purchases for `remove_ads`
+  Future<void> restorePurchases() async {
+    try {
+      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+        await InAppPurchase.instance.restorePurchases();
+      }
+    } catch (e) {
+      debugPrint('Restore purchases notice: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _purchaseSub?.cancel();
+    super.dispose();
   }
 
   void recordNavigation(BuildContext context, WidgetRef ref) {
@@ -89,7 +164,7 @@ class AdNotifier extends StateNotifier<AdState> {
   }
 
   void showInterstitialAd(BuildContext context, WidgetRef ref) {
-    if (state.isAdsRemoved) return;
+    if (state.isAdsRemoved || kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
 
     state = state.copyWith(isShowingInterstitial: true);
 
@@ -130,7 +205,7 @@ class AdNotifier extends StateNotifier<AdState> {
     required String featureName,
     required VoidCallback onRewardGranted,
   }) {
-    if (state.isAdsRemoved) {
+    if (state.isAdsRemoved || kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
       onRewardGranted();
       return;
     }
@@ -373,6 +448,7 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
   }
 
   void _loadBannerAd() {
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
     try {
       _bannerAd?.dispose();
       _bannerAd = BannerAd(

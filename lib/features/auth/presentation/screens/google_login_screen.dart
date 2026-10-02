@@ -61,6 +61,11 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
             _errorMessage =
                 'Google Play Services sign-in was interrupted. You can also tap "Sign in with Google Email Address" below to enter your email directly.';
           });
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) {
+              _showManualEmailDialog(context);
+            }
+          });
         }
       }
     } catch (_) {
@@ -182,7 +187,7 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                 const SizedBox(height: 24),
 
                 Text(
-                  'Welcome to MyExpense',
+                  'Welcome to My Expence Book',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,

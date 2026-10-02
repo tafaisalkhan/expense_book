@@ -52,7 +52,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('MyExpense Premium'),
+        title: const Text('My Expence Book Premium'),
         actions: [
           IconButton(
             icon: const Icon(Icons.close),
@@ -82,7 +82,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
               Text(
                 widget.featureName != null
                     ? 'Unlock ${widget.featureName}'
-                    : 'Upgrade to MyExpense Premium',
+                    : 'Upgrade to My Expence Book Premium',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),

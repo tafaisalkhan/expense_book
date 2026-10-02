@@ -127,6 +127,9 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     _sessionPollTimer?.cancel();
     _activeSessionSub?.cancel();
 
+    final String registeredToken = _currentSessionToken ?? '';
+    if (registeredToken.isEmpty) return;
+
     // Listen to Cloud Firestore real-time active session changes for this user account
     try {
       _activeSessionSub = FirebaseFirestore.instance
@@ -136,11 +139,16 @@ class AuthNotifier extends StateNotifier<AuthUser> {
           .listen(
         (snapshot) {
           if (snapshot.exists && snapshot.data() != null) {
+            // Ignore uncommitted local writes
+            if (snapshot.metadata.hasPendingWrites) return;
+
             final data = snapshot.data() as Map<String, dynamic>;
             final remoteToken = data['sessionToken'] as String?;
             if (remoteToken != null &&
                 _currentSessionToken != null &&
-                remoteToken != _currentSessionToken) {
+                _currentSessionToken!.isNotEmpty &&
+                remoteToken != _currentSessionToken &&
+                remoteToken != registeredToken) {
               debugPrint('⚠️ Remote active session token ($remoteToken) != local token ($_currentSessionToken). Triggering logout popup...');
               triggerLogoutDialog('You have been logged out because your account was logged into from another device.');
             }
@@ -187,6 +195,7 @@ class AuthNotifier extends StateNotifier<AuthUser> {
   Future<bool> signInWithGoogle() async {
     try {
       final GoogleSignIn googleSignIn = GoogleSignIn(
+        serverClientId: '61987252093-s5oc67k22aj8gs8947rmsdsaemjlpfuq.apps.googleusercontent.com',
         scopes: ['email', 'profile'],
       );
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
@@ -369,10 +378,11 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final bool appLockSetting = prefs.getBool('app_lock_security_enabled_v1') ?? true;
-    
-    await prefs.clear();
-    await prefs.setBool('app_lock_security_enabled_v1', appLockSetting);
+    await prefs.remove(_keyIsLoggedIn);
+    await prefs.remove(_keyUserEmail);
+    await prefs.remove(_keyUserUid);
+    await prefs.remove(_keyUserName);
+    await prefs.remove(_keySessionToken);
 
     if (_ref != null) {
       try {
@@ -436,9 +446,11 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final bool appLockSetting = prefs.getBool('app_lock_security_enabled_v1') ?? true;
-    await prefs.clear();
-    await prefs.setBool('app_lock_security_enabled_v1', appLockSetting);
+    await prefs.remove(_keyIsLoggedIn);
+    await prefs.remove(_keyUserEmail);
+    await prefs.remove(_keyUserUid);
+    await prefs.remove(_keyUserName);
+    await prefs.remove(_keySessionToken);
 
     if (_ref != null) {
       try {

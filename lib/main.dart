@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -12,15 +14,17 @@ void main() async {
     await Firebase.initializeApp();
   } catch (_) {}
   try {
-    await MobileAds.instance.initialize();
-    await MobileAds.instance.updateRequestConfiguration(
-      RequestConfiguration(
-        testDeviceIds: [
-          '7FAD65EC0E638FA926CE871CB91C3E96',
-          'D8DC7BA59F51F2B7C1529F09E1F0EA3E',
-        ],
-      ),
-    );
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      await MobileAds.instance.initialize();
+      await MobileAds.instance.updateRequestConfiguration(
+        RequestConfiguration(
+          testDeviceIds: [
+            '7FAD65EC0E638FA926CE871CB91C3E96',
+            'D8DC7BA59F51F2B7C1529F09E1F0EA3E',
+          ],
+        ),
+      );
+    }
   } catch (_) {}
   runApp(
     const ProviderScope(
@@ -35,7 +39,7 @@ class MyExpenseApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'MyExpense',
+      title: 'My Expence Book',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

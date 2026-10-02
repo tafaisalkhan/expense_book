@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -163,6 +165,7 @@ class SmsListenerService {
 
   /// Start periodic 1-minute SMS scheduler that reads unread whitelisted bank SMS from Android inbox (requires ONLY READ_SMS permission)
   void startListening(WidgetRef ref, {required Function(SmsParseResult result) onWhitelistedSmsReceived}) {
+    if (kIsWeb || !Platform.isAndroid) return;
     // 1. Immediate sync on start
     syncInboxSms(ref, onWhitelistedSmsReceived: (parsed) async {
       onWhitelistedSmsReceived(parsed);
