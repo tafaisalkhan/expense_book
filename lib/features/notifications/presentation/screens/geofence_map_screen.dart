@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
 import 'package:myexpence/core/utils/date_formatters.dart';
@@ -522,6 +523,109 @@ class _GeofenceMapScreenState extends ConsumerState<GeofenceMapScreen> {
                         ],
                       ),
                       const SizedBox(height: 6),
+                      // Live Proximity & Distance Calculation Badge
+                      Builder(builder: (context) {
+                        final double liveDist = Geolocator.distanceBetween(
+                          _userCurrentGpsPoint.latitude,
+                          _userCurrentGpsPoint.longitude,
+                          _selectedPoint.latitude,
+                          _selectedPoint.longitude,
+                        );
+                        final bool isInsideRange = liveDist <= _radiusMeters;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isInsideRange ? Colors.green.shade50 : Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: isInsideRange ? Colors.green : Colors.orange),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isInsideRange ? Icons.check_circle : Icons.warning_amber_rounded,
+                                color: isInsideRange ? Colors.green.shade700 : Colors.orange.shade800,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  isInsideRange
+                                      ? '🟢 Inside Range (${liveDist.round()}m away <= ${_radiusMeters.round()}m)'
+                                      : '🔴 Outside Range (${liveDist.round()}m away > ${_radiusMeters.round()}m)',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isInsideRange ? Colors.green.shade900 : Colors.orange.shade900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.green,
+                                side: const BorderSide(color: Colors.green),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              onPressed: () async {
+                                final name = _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : _locationType.label;
+                                final target = GeofenceTarget(
+                                  id: const Uuid().v4(),
+                                  name: name,
+                                  locationType: _locationType,
+                                  latitude: _selectedPoint.latitude,
+                                  longitude: _selectedPoint.longitude,
+                                  radiusMeters: _radiusMeters,
+                                );
+                                await ref.read(locationNotificationProvider.notifier).simulateEnterGeofence(target);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('🟢 Triggered ENTER Range for "$name"! Notification posted.')),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.login, size: 16),
+                              label: const Text('🟢 Test Enter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(color: Colors.red),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              onPressed: () async {
+                                final name = _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : _locationType.label;
+                                final target = GeofenceTarget(
+                                  id: const Uuid().v4(),
+                                  name: name,
+                                  locationType: _locationType,
+                                  latitude: _selectedPoint.latitude,
+                                  longitude: _selectedPoint.longitude,
+                                  radiusMeters: _radiusMeters,
+                                );
+                                await ref.read(locationNotificationProvider.notifier).simulateExitGeofence(target);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('🔴 Triggered EXIT Range for "$name"! Notification posted.')),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.logout, size: 16),
+                              label: const Text('🔴 Test Exit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryColor,

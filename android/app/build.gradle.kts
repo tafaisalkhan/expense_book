@@ -55,7 +55,8 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
@@ -74,6 +75,3 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
 
-tasks.matching { it.name.contains("strip", ignoreCase = true) }.configureEach {
-    enabled = false
-}

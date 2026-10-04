@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
+import 'package:myexpence/core/utils/app_error_logger.dart';
 import 'package:myexpence/features/ads/presentation/providers/ad_providers.dart';
 import 'package:myexpence/features/auth/presentation/providers/auth_providers.dart';
 import 'package:myexpence/features/security/presentation/providers/security_providers.dart';
@@ -644,15 +645,62 @@ class MoreScreen extends ConsumerWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.security, color: Colors.blue),
-                  title: const Text('Offline-First Security'),
-                  subtitle: const Text('All financial records remain local to your device by default'),
+                  leading: const Icon(Icons.bug_report_outlined, color: Colors.deepOrange),
+                  title: const Text('App Startup Diagnostic Logs', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('View persistent runtime exception logs & diagnostic reports'),
+                  onTap: () async {
+                    final logs = await AppErrorLogger.getLogs();
+                    if (context.mounted) {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Row(
+                            children: [
+                              Icon(Icons.bug_report, color: Colors.deepOrange),
+                              SizedBox(width: 8),
+                              Text('Diagnostic Logs'),
+                            ],
+                          ),
+                          content: SizedBox(
+                            width: double.maxFinite,
+                            child: logs.isEmpty
+                                ? const Text('✅ No startup error logs recorded. App running smoothly!')
+                                : ListView.separated(
+                                    shrinkWrap: true,
+                                    itemCount: logs.length,
+                                    separatorBuilder: (_, __) => const Divider(),
+                                    itemBuilder: (context, index) {
+                                      return SelectableText(
+                                        logs[index],
+                                        style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                                      );
+                                    },
+                                  ),
+                          ),
+                          actions: [
+                            if (logs.isNotEmpty)
+                              TextButton(
+                                onPressed: () async {
+                                  await AppErrorLogger.clearLogs();
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                },
+                                child: const Text('Clear Logs', style: TextStyle(color: Colors.red)),
+                              ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Close'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  },
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.info_outline, color: Colors.grey),
                   title: const Text('MyExpense Version'),
-                  subtitle: const Text('1.4.0 (Ad-Supported & Remove Ads Product Ready)'),
+                  subtitle: const Text('1.0.7+8 (Ad-Supported & Remove Ads Product Ready)'),
                 ),
               ],
             ),

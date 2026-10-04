@@ -31,11 +31,11 @@
     <h3>B. Google Authentication</h3>
     <p>Google Account email and display name are used solely for identity verification during login via Firebase Auth.</p>
 
-    <h3>C. SMS Parsing Permissions (READ_SMS, RECEIVE_SMS)</h3>
-    <p>Used strictly on-device to auto-detect whitelisted bank transaction notifications with user confirmation. SMS text is never transmitted off your device.</p>
+    <h3>D. Location & Geofencing Permissions (ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION, ACCESS_BACKGROUND_LOCATION, FOREGROUND_SERVICE_LOCATION)</h3>
+    <p>Used strictly on-device for location-based expense prompts when entering or leaving commercial areas (petrol stations, supermarkets). Background location permissions allow proximity triggers while the app is minimized. Coordinates are never tracked, stored externally, or shared.</p>
 
-    <h3>D. Location Permissions (ACCESS_FINE_LOCATION)</h3>
-    <p>Used strictly on-device for location-based expense prompts when visiting commercial areas (petrol stations, supermarkets). Coordinates are never tracked or stored externally.</p>
+    <h3>E. Additional Device Permissions (POST_NOTIFICATIONS, VIBRATE, RECEIVE_BOOT_COMPLETED, USE_BIOMETRIC)</h3>
+    <p>Notifications and vibration are used for expense reminders. Boot completion restores geofences on device restart. Biometrics provide optional app lock security.</p>
 
     <h2>3. Advertising & In-App Purchase</h2>
     <p>The app uses Google AdMob (<code>com.google.android.gms.ads</code>) for ads. Users can purchase the <strong>Remove Ads</strong> product (<code>remove_ads</code> - $4.99) to disable all advertising permanently.</p>

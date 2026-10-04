@@ -74,14 +74,22 @@ class LocalDataBackupService {
 
       final jsonString = const JsonEncoder.withIndent('  ').convert(backupPayload);
 
-      // Save file to Documents / Downloads directory
-      final docsDir = await getApplicationDocumentsDirectory();
-      final targetFile = File('${docsDir.path}/myexpense_data_backup_$timestampStr.json');
+      // Save file to public Downloads directory on Android
+      Directory? targetDir;
+      if (Platform.isAndroid) {
+        final pubDownload = Directory('/storage/emulated/0/Download');
+        if (pubDownload.existsSync()) {
+          targetDir = pubDownload;
+        }
+      }
+      targetDir ??= await getDownloadsDirectory() ?? await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();
+
+      final targetFile = File('${targetDir.path}/myexpense_data_backup_$timestampStr.json');
       await targetFile.writeAsString(jsonString);
 
       return LocalBackupResult(
         success: true,
-        message: '✅ Downloaded ${expenses.length} expense(s) & settings to local backup file!',
+        message: '✅ Downloaded ${expenses.length} expense(s) to Downloads folder!\nSaved as: ${targetFile.path}',
         backupDateIso: nowIso,
         recordCount: expenses.length,
         filePath: targetFile.path,

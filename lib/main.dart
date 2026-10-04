@@ -5,14 +5,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
+import 'package:myexpence/core/utils/app_error_logger.dart';
 import 'package:myexpence/features/navigation/app_router.dart';
 import 'package:myexpence/features/security/presentation/screens/app_lock_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Catch unhandled Flutter UI errors safely without crashing app on startup
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    AppErrorLogger.logError('FlutterUIError', details.exceptionAsString(), details.stack);
+  };
+
+  // Catch unhandled async errors
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    AppErrorLogger.logError('PlatformAsyncError', error, stack);
+    return true; // Prevents crash
+  };
+
   try {
     await Firebase.initializeApp();
-  } catch (_) {}
+  } catch (e, stack) {
+    AppErrorLogger.logError('FirebaseInitError', e, stack);
+  }
+
   try {
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
       await MobileAds.instance.initialize();
@@ -25,7 +42,10 @@ void main() async {
         ),
       );
     }
-  } catch (_) {}
+  } catch (e, stack) {
+    AppErrorLogger.logError('AdMobInitError', e, stack);
+  }
+
   runApp(
     const ProviderScope(
       child: MyExpenseApp(),

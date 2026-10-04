@@ -212,6 +212,48 @@ class _LocationNotificationsScreenState extends ConsumerState<LocationNotificati
                                       ),
                                     ),
                                   ],
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      OutlinedButton.icon(
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Colors.green,
+                                          side: const BorderSide(color: Colors.green),
+                                          visualDensity: VisualDensity.compact,
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        ),
+                                        onPressed: () async {
+                                          await ref.read(locationNotificationProvider.notifier).simulateEnterGeofence(geo);
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('🟢 Triggered ENTER Range for "${geo.name}"! Notification posted.')),
+                                            );
+                                          }
+                                        },
+                                        icon: const Icon(Icons.login, size: 14),
+                                        label: const Text('🟢 Test Enter', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      OutlinedButton.icon(
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Colors.red,
+                                          side: const BorderSide(color: Colors.red),
+                                          visualDensity: VisualDensity.compact,
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        ),
+                                        onPressed: () async {
+                                          await ref.read(locationNotificationProvider.notifier).simulateExitGeofence(geo);
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('🔴 Triggered EXIT Range for "${geo.name}"! Notification posted.')),
+                                            );
+                                          }
+                                        },
+                                        icon: const Icon(Icons.logout, size: 14),
+                                        label: const Text('🔴 Test Exit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                      ),
+                                    ],
+                                  ),
                                 ],
                               ),
                               trailing: IconButton(

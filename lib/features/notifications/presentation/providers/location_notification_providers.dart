@@ -430,6 +430,20 @@ class LocationNotificationNotifier extends StateNotifier<LocationNotificationSta
     await prefs.setString(_prefKeyGeofences, jsonEncode(raw));
   }
 
+  /// Manually simulates or triggers Enter Range for a specific geofence target or place
+  Future<LocationVisitNotification?> simulateEnterGeofence(GeofenceTarget target) async {
+    _insideGeofences.add(target.id);
+    await _saveInsideGeofences();
+    return await userEnteredLocation(placeName: target.name, type: target.locationType);
+  }
+
+  /// Manually simulates or triggers Exit Range for a specific geofence target or place
+  Future<LocationVisitNotification?> simulateExitGeofence(GeofenceTarget target) async {
+    _insideGeofences.remove(target.id);
+    await _saveInsideGeofences();
+    return await userLeftLocation(placeName: target.name, type: target.locationType);
+  }
+
   /// Triggers when user ENTERS a commercial location or map geofence zone
   Future<LocationVisitNotification?> userEnteredLocation({
     required String placeName,

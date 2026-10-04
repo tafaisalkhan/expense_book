@@ -26,14 +26,15 @@ Expense Book is built on an **Offline-First Architecture**. Your financial recor
 * **What is collected:** Google Account email address, display name, and unique user identifier (UID).
 * **Purpose:** Used strictly for secure user authentication and account login verification.
 
-### C. SMS Reading & Auto-Parsing Permission (`READ_SMS`, `RECEIVE_SMS`)
-* **Purpose:** Allows the app to auto-detect bank transaction SMS notifications from user-whitelisted senders (e.g., bank debit/credit alerts).
-* **Processing:** All SMS parsing occurs **100% locally on your device**. Raw SMS text is never transmitted to external servers.
-* **User Control:** SMS parsing requires explicit user approval before any transaction is saved. Users can add or remove whitelisted senders at any time.
-
-### D. Location & Geofencing Permission (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`)
+### D. Location & Geofencing Permission (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION`, `FOREGROUND_SERVICE_LOCATION`)
 * **Purpose:** Triggers optional post-visit expense reminders when you enter or exit specified commercial areas (e.g., Petrol Stations, Supermarkets, Hospitals).
+* **Background Tracking:** `ACCESS_BACKGROUND_LOCATION` and `FOREGROUND_SERVICE_LOCATION` allow geofence proximity detection to run when the app is minimized.
 * **Processing:** Location coordinates are calculated **strictly on-device** using Android Location Services. Your real-time location is never tracked, stored on cloud servers, or shared with third parties.
+
+### E. Additional Device Permissions
+* **Notifications & Vibration (`POST_NOTIFICATIONS`, `VIBRATE`):** To deliver real-time location reminders and daily end-of-day expense logs.
+* **Boot Restoration (`RECEIVE_BOOT_COMPLETED`):** To automatically re-enable location geofence reminders after device restart.
+* **Biometric Security (`USE_BIOMETRIC`, `USE_FINGERPRINT`):** For optional fingerprint/face security app lock.
 
 ---
 
