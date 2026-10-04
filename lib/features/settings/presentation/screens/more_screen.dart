@@ -6,9 +6,6 @@ import 'package:myexpence/core/utils/app_error_logger.dart';
 import 'package:myexpence/features/ads/presentation/providers/ad_providers.dart';
 import 'package:myexpence/features/auth/presentation/providers/auth_providers.dart';
 import 'package:myexpence/features/security/presentation/providers/security_providers.dart';
-import 'package:myexpence/features/sms_parser/domain/services/sms_listener_service.dart';
-import 'package:myexpence/features/sms_parser/presentation/providers/sms_whitelist_provider.dart';
-import 'package:myexpence/features/sms_parser/presentation/widgets/sms_approval_dialog.dart';
 import 'package:myexpence/features/subscription/domain/services/local_data_backup_service.dart';
 
 class MoreScreen extends ConsumerWidget {
@@ -409,42 +406,6 @@ class MoreScreen extends ConsumerWidget {
                   subtitle: const Text('View and configure default spending taxonomy'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/categories'),
-                ),
-                const Divider(height: 1),
-
-                // Location Reminders & Geofencing (Requires Rewarded Ad unless remove_ads purchased)
-                ListTile(
-                  leading: const Icon(Icons.location_on, color: AppTheme.primaryColor),
-                  title: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Location Reminders & Geofencing',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      if (!isAdsRemoved)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.purple,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text('🎬 AD', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
-                        ),
-                    ],
-                  ),
-                  subtitle: const Text('Marts, Petrol Pumps & Hospital post-visit prompts (Runs after Rewarded Ad)'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    ref.read(adNotifierProvider.notifier).runWithRewardedAd(
-                      context,
-                      featureName: 'Location Reminders & Geofencing',
-                      onRewardGranted: () => context.push('/location-notifications'),
-                    );
-                  },
                 ),
               ],
             ),

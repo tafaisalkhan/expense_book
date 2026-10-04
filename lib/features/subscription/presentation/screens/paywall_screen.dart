@@ -112,13 +112,6 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                       const Divider(height: 20),
                       _buildFeatureRow(
                         context,
-                        Icons.location_on,
-                        'Location & Geofencing Reminders',
-                        'Receive spending log prompts when near saved supermarkets & stations.',
-                      ),
-                      const Divider(height: 20),
-                      _buildFeatureRow(
-                        context,
                         Icons.cloud_sync,
                         'Encrypted Cloud Backup & Sync',
                         'Keep your local database synchronized across your devices securely.',

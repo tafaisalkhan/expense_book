@@ -1,15 +1,16 @@
 # Privacy Policy for Expense Book
 
-**Effective Date:** October 2, 2026  
+**Effective Date:** October 4, 2026  
 **Application Name:** Expense Book  
 **App Name:** `My Expence Book`  
+**Package Name:** `com.myexpense.book`  
 **Developer:** Muhammad Faisal Khan  
 **Contact Email:** android.nextlevel@gmail.com  
 
 ---
 
 ## 1. Overview
-**Expense Book** ("we", "our", or "us") is dedicated to protecting your privacy. This Privacy Policy explains how our application handles information, user data, device permissions, and advertising when you use the Expense Book mobile application.
+**Expense Book** ("we", "our", or "us") is dedicated to protecting your privacy. This Privacy Policy explains how our application handles information, user data, device permissions, and advertising when you use the Expense Book mobile application (`com.myexpense.book`).
 
 Expense Book is built on an **Offline-First Architecture**. Your financial records, receipts, categories, budgets, and personal profiles are stored locally on your device by default.
 
@@ -26,14 +27,8 @@ Expense Book is built on an **Offline-First Architecture**. Your financial recor
 * **What is collected:** Google Account email address, display name, and unique user identifier (UID).
 * **Purpose:** Used strictly for secure user authentication and account login verification.
 
-### D. Location & Geofencing Permission (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION`, `FOREGROUND_SERVICE_LOCATION`)
-* **Purpose:** Triggers optional post-visit expense reminders when you enter or exit specified commercial areas (e.g., Petrol Stations, Supermarkets, Hospitals).
-* **Background Tracking:** `ACCESS_BACKGROUND_LOCATION` and `FOREGROUND_SERVICE_LOCATION` allow geofence proximity detection to run when the app is minimized.
-* **Processing:** Location coordinates are calculated **strictly on-device** using Android Location Services. Your real-time location is never tracked, stored on cloud servers, or shared with third parties.
-
-### E. Additional Device Permissions
-* **Notifications & Vibration (`POST_NOTIFICATIONS`, `VIBRATE`):** To deliver real-time location reminders and daily end-of-day expense logs.
-* **Boot Restoration (`RECEIVE_BOOT_COMPLETED`):** To automatically re-enable location geofence reminders after device restart.
+### C. Additional Device Permissions
+* **Notifications & Vibration (`POST_NOTIFICATIONS`, `VIBRATE`):** To deliver scheduled expense logging reminders and notifications.
 * **Biometric Security (`USE_BIOMETRIC`, `USE_FINGERPRINT`):** For optional fingerprint/face security app lock.
 
 ---

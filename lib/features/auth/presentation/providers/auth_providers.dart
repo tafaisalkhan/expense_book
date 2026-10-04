@@ -16,7 +16,6 @@ import 'package:myexpence/features/budgets/presentation/providers/budget_provide
 import 'package:myexpence/features/calendar/presentation/providers/calendar_providers.dart';
 import 'package:myexpence/features/dashboard/presentation/providers/dashboard_providers.dart';
 import 'package:myexpence/features/expenses/presentation/providers/expense_providers.dart';
-import 'package:myexpence/features/notifications/presentation/providers/location_notification_providers.dart';
 import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
 import 'package:myexpence/features/security/presentation/providers/security_providers.dart';
 import 'package:myexpence/features/sms_parser/presentation/providers/sms_whitelist_provider.dart';
@@ -276,7 +275,6 @@ class AuthNotifier extends StateNotifier<AuthUser> {
       _ref.invalidate(budgetNotifierProvider);
       _ref.invalidate(subscriptionProvider);
       _ref.invalidate(smsWhitelistProvider);
-      _ref.invalidate(locationNotificationProvider);
     } catch (e) {
       debugPrint('Provider invalidation notice: $e');
     }

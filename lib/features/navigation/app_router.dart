@@ -11,8 +11,6 @@ import 'package:myexpence/features/expenses/domain/models/expense.dart';
 import 'package:myexpence/features/expenses/presentation/screens/add_expense_screen.dart';
 import 'package:myexpence/features/expenses/presentation/screens/expense_list_screen.dart';
 import 'package:myexpence/features/navigation/main_shell_screen.dart';
-import 'package:myexpence/features/notifications/presentation/screens/location_notifications_screen.dart';
-import 'package:myexpence/features/notifications/presentation/screens/geofence_map_screen.dart';
 import 'package:myexpence/features/people/presentation/screens/people_screen.dart';
 import 'package:myexpence/features/settings/presentation/screens/more_screen.dart';
 import 'package:myexpence/features/sms_parser/presentation/screens/share_sms_review_screen.dart';
@@ -68,10 +66,6 @@ final GoRouter appRouter = GoRouter(
           path: '/budgets',
           builder: (context, state) => const BudgetScreen(),
         ),
-        GoRoute(
-          path: '/location-notifications',
-          builder: (context, state) => const LocationNotificationsScreen(),
-        ),
       ],
     ),
     GoRoute(
@@ -81,11 +75,6 @@ final GoRouter appRouter = GoRouter(
         final expenseToEdit = state.extra as Expense?;
         return AddExpenseScreen(expenseToEdit: expenseToEdit);
       },
-    ),
-    GoRoute(
-      parentNavigatorKey: _rootNavigatorKey,
-      path: '/map-picker',
-      builder: (context, state) => const GeofenceMapScreen(),
     ),
     GoRoute(
       parentNavigatorKey: _rootNavigatorKey,
