@@ -717,8 +717,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final requiredAmt = data.classificationBreakdown[ExpenseClassification.required] ?? 0.0;
     final urgentAmt = data.classificationBreakdown[ExpenseClassification.urgent] ?? 0.0;
     final optionalAmt = data.classificationBreakdown[ExpenseClassification.optional] ?? 0.0;
+    final lostAmt = data.classificationBreakdown[ExpenseClassification.lost] ?? 0.0;
 
-    final maxVal = [requiredAmt, urgentAmt, optionalAmt]
+    final maxVal = [requiredAmt, urgentAmt, optionalAmt, lostAmt]
             .fold<double>(0, (m, v) => v > m ? v : m) *
         1.2;
 
@@ -767,6 +768,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 padding: EdgeInsets.only(top: 6),
                                 child: Text('Optional', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                               );
+                            case 3:
+                              return const Padding(
+                                padding: EdgeInsets.only(top: 6),
+                                child: Text('Lost', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              );
                             default:
                               return const SizedBox.shrink();
                           }
@@ -783,7 +789,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         BarChartRodData(
                           toY: requiredAmt,
                           color: const Color(0xFF00B894),
-                          width: 28,
+                          width: 22,
                           borderRadius: BorderRadius.circular(8),
                         )
                       ],
@@ -794,7 +800,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         BarChartRodData(
                           toY: urgentAmt,
                           color: const Color(0xFFFF7675),
-                          width: 28,
+                          width: 22,
                           borderRadius: BorderRadius.circular(8),
                         )
                       ],
@@ -805,7 +811,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         BarChartRodData(
                           toY: optionalAmt,
                           color: const Color(0xFFFDCB6E),
-                          width: 28,
+                          width: 22,
+                          borderRadius: BorderRadius.circular(8),
+                        )
+                      ],
+                    ),
+                    BarChartGroupData(
+                      x: 3,
+                      barRods: [
+                        BarChartRodData(
+                          toY: lostAmt,
+                          color: const Color(0xFF8E44AD),
+                          width: 22,
                           borderRadius: BorderRadius.circular(8),
                         )
                       ],

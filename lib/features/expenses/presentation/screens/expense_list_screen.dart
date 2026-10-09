@@ -110,6 +110,15 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                             _selectedClassification =
                                 ExpenseClassification.optional),
                       ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        label: const Text('Lost'),
+                        selected: _selectedClassification ==
+                            ExpenseClassification.lost,
+                        onSelected: (_) => setState(() =>
+                            _selectedClassification =
+                                ExpenseClassification.lost),
+                      ),
                     ],
                   ),
                 ),
@@ -302,6 +311,8 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
         return AppTheme.requiredColor;
       case ExpenseClassification.optional:
         return AppTheme.optionalColor;
+      case ExpenseClassification.lost:
+        return AppTheme.lostColor;
     }
   }
 }

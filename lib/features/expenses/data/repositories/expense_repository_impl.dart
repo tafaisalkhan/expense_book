@@ -163,6 +163,7 @@ class SqliteExpenseRepository implements IExpenseRepository {
       ExpenseClassification.urgent: 0.0,
       ExpenseClassification.required: 0.0,
       ExpenseClassification.optional: 0.0,
+      ExpenseClassification.lost: 0.0,
     };
 
     for (final row in result) {

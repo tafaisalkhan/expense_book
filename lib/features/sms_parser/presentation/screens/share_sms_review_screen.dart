@@ -638,6 +638,16 @@ class _ShareSmsReviewScreenState extends ConsumerState<ShareSmsReviewScreen> {
                                 },
                               ),
                             ),
+                            Expanded(
+                              child: RadioListTile<ExpenseClassification>(
+                                title: const Text('Lost', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                value: ExpenseClassification.lost,
+                                groupValue: _classification,
+                                onChanged: (val) {
+                                  if (val != null) setState(() => _classification = val);
+                                },
+                              ),
+                            ),
                           ],
                         ),
                       ],

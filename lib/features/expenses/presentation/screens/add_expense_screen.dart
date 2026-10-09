@@ -502,6 +502,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                         label: Text('Optional'),
                         icon: Icon(Icons.local_activity),
                       ),
+                      ButtonSegment(
+                        value: ExpenseClassification.lost,
+                        label: Text('Lost'),
+                        icon: Icon(Icons.money_off),
+                      ),
                     ],
                     selected: {_classification},
                     onSelectionChanged: (set) {

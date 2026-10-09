@@ -7,6 +7,7 @@ class AppTheme {
   static const Color requiredColor = Color(0xFFDC2626); // Red
   static const Color needColor = Color(0xFFD97706); // Amber
   static const Color optionalColor = Color(0xFF2563EB); // Blue
+  static const Color lostColor = Color(0xFF8E44AD); // Purple
 
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
