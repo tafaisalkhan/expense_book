@@ -35,6 +35,7 @@ class CategoryScreen extends ConsumerWidget {
               const SizedBox(height: 6),
               SegmentedButton<ExpenseClassification>(
                 segments: const [
+                  ButtonSegment(value: ExpenseClassification.urgent, label: Text('Urgent')),
                   ButtonSegment(value: ExpenseClassification.required, label: Text('Required')),
                   ButtonSegment(value: ExpenseClassification.optional, label: Text('Optional')),
                 ],
@@ -97,6 +98,7 @@ class CategoryScreen extends ConsumerWidget {
               const SizedBox(height: 6),
               SegmentedButton<ExpenseClassification>(
                 segments: const [
+                  ButtonSegment(value: ExpenseClassification.urgent, label: Text('Urgent')),
                   ButtonSegment(value: ExpenseClassification.required, label: Text('Required')),
                   ButtonSegment(value: ExpenseClassification.optional, label: Text('Optional')),
                 ],
@@ -158,6 +160,7 @@ class CategoryScreen extends ConsumerWidget {
               const SizedBox(height: 6),
               SegmentedButton<ExpenseClassification>(
                 segments: const [
+                  ButtonSegment(value: ExpenseClassification.urgent, label: Text('Urgent')),
                   ButtonSegment(value: ExpenseClassification.required, label: Text('Required')),
                   ButtonSegment(value: ExpenseClassification.optional, label: Text('Optional')),
                 ],
@@ -214,6 +217,7 @@ class CategoryScreen extends ConsumerWidget {
               const SizedBox(height: 6),
               SegmentedButton<ExpenseClassification>(
                 segments: const [
+                  ButtonSegment(value: ExpenseClassification.urgent, label: Text('Urgent')),
                   ButtonSegment(value: ExpenseClassification.required, label: Text('Required')),
                   ButtonSegment(value: ExpenseClassification.optional, label: Text('Optional')),
                 ],

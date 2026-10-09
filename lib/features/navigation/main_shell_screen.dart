@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:myexpence/core/services/app_permissions_service.dart';
+import 'package:myexpence/core/providers/core_providers.dart';
 import 'package:myexpence/core/widgets/draggable_floating_action_button.dart';
 import 'package:myexpence/features/ads/presentation/providers/ad_providers.dart';
 import 'package:myexpence/features/auth/domain/models/auth_user.dart';
@@ -13,6 +14,7 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import 'package:myexpence/features/sms_parser/domain/services/sms_listener_service.dart';
 import 'package:myexpence/features/sms_parser/presentation/widgets/sms_approval_dialog.dart';
+import 'package:myexpence/features/expenses/presentation/widgets/pending_recurring_expenses_dialog.dart';
 
 class MainShellScreen extends ConsumerStatefulWidget {
   final Widget child;
@@ -23,8 +25,10 @@ class MainShellScreen extends ConsumerStatefulWidget {
   ConsumerState<MainShellScreen> createState() => _MainShellScreenState();
 }
 
-class _MainShellScreenState extends ConsumerState<MainShellScreen> with WidgetsBindingObserver {
+class _MainShellScreenState extends ConsumerState<MainShellScreen>
+    with WidgetsBindingObserver {
   StreamSubscription? _intentDataStreamSubscription;
+  bool _checkingRecurringExpenses = false;
 
   @override
   void initState() {
@@ -34,6 +38,8 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> with WidgetsB
     _checkInitialSmsNotification();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AppPermissionsService.requestAllStartupPermissions(ref, context: context);
+      _checkRecurringExpenses();
+      _scheduleRecurringReminder();
     });
   }
 
@@ -48,9 +54,30 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> with WidgetsB
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && mounted) {
       // Re-evaluate permissions dynamically when app is resumed from background / settings
-      AppPermissionsService.requestAllStartupPermissions(ref, context: context, forceRefresh: true);
+      AppPermissionsService.requestAllStartupPermissions(ref,
+          context: context, forceRefresh: true);
       _checkInitialSmsNotification();
+      _checkRecurringExpenses();
     }
+  }
+
+  Future<void> _checkRecurringExpenses() async {
+    if (_checkingRecurringExpenses || !mounted) return;
+    _checkingRecurringExpenses = true;
+    try {
+      await showPendingRecurringExpensesDialog(context, ref);
+    } catch (_) {
+    } finally {
+      _checkingRecurringExpenses = false;
+    }
+  }
+
+  Future<void> _scheduleRecurringReminder() async {
+    try {
+      final service = ref.read(notificationServiceProvider);
+      await service.init();
+      await service.scheduleRecurringApprovalReminder();
+    } catch (_) {}
   }
 
   Future<void> _checkInitialSmsNotification() async {
@@ -75,8 +102,9 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> with WidgetsB
     if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
     try {
       // For sharing images/files while app is running/backgrounded
-      _intentDataStreamSubscription =
-          ReceiveSharingIntent.instance.getMediaStream().listen((List<SharedMediaFile> value) {
+      _intentDataStreamSubscription = ReceiveSharingIntent.instance
+          .getMediaStream()
+          .listen((List<SharedMediaFile> value) {
         if (value.isNotEmpty && mounted) {
           final sharedPath = value.first.path;
           context.push('/share-receipt', extra: sharedPath);
@@ -84,7 +112,9 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> with WidgetsB
       }, onError: (_) {});
 
       // For sharing images/files when app is launched via Share menu
-      ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
+      ReceiveSharingIntent.instance
+          .getInitialMedia()
+          .then((List<SharedMediaFile> value) {
         if (value.isNotEmpty && mounted) {
           final sharedPath = value.first.path;
           context.push('/share-receipt', extra: sharedPath);
@@ -99,7 +129,9 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> with WidgetsB
     if (location.startsWith('/expenses')) return 1;
     if (location.startsWith('/add')) return 2;
     if (location.startsWith('/analytics')) return 3;
-    if (location.startsWith('/more') || location.startsWith('/people') || location.startsWith('/categories')) return 4;
+    if (location.startsWith('/more') ||
+        location.startsWith('/people') ||
+        location.startsWith('/categories')) return 4;
     return 0; // Dashboard
   }
 
@@ -134,12 +166,15 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> with WidgetsB
           context: context,
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: const Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                Icon(Icons.warning_amber_rounded,
+                    color: Colors.orange, size: 28),
                 SizedBox(width: 10),
-                Text('Logged Out', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('Logged Out',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
             content: Text(
@@ -151,12 +186,14 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> with WidgetsB
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red[700],
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () {
                   Navigator.of(ctx).pop();
                 },
-                child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text('OK',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),

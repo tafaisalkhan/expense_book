@@ -598,7 +598,7 @@ class _ShareSmsReviewScreenState extends ConsumerState<ShareSmsReviewScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                // 7. Expense Classification (2 Options: Required vs Optional)
+                // 7. Expense Classification
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
@@ -609,6 +609,15 @@ class _ShareSmsReviewScreenState extends ConsumerState<ShareSmsReviewScreen> {
                         const SizedBox(height: 6),
                         Row(
                           children: [
+                            Expanded(
+                              child: RadioListTile<ExpenseClassification>(
+                                title: const Text('Urgent', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                value: ExpenseClassification.urgent,
+                                groupValue: _classification,
+                                contentPadding: EdgeInsets.zero,
+                                onChanged: (value) => setState(() => _classification = value!),
+                              ),
+                            ),
                             Expanded(
                               child: RadioListTile<ExpenseClassification>(
                                 title: const Text('Required', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),

@@ -5,7 +5,7 @@ import 'package:myexpence/core/database/database_migrations.dart';
 
 class AppDatabase {
   static const String _dbName = 'myexpense.db';
-  static const int _dbVersion = 3;
+  static const int _dbVersion = 4;
 
   Database? _db;
 
@@ -44,6 +44,7 @@ class AppDatabase {
     await db.delete('receipts');
     await db.delete('zero_spend_confirmations');
     await db.delete('people');
+    await db.delete('recurring_expenses');
 
     // Re-seed initial default family member 'Me'
     await db.execute('''

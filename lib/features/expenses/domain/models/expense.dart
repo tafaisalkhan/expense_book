@@ -1,5 +1,7 @@
 import 'package:myexpence/features/expenses/domain/models/expense_classification.dart';
 import 'package:myexpence/features/expenses/domain/models/payment_method.dart';
+import 'dart:convert';
+import 'package:myexpence/features/expenses/domain/models/expense_allocation.dart';
 
 class Expense {
   final int? id;
@@ -23,6 +25,7 @@ class Expense {
   final String? notes;
   final ExpenseStatus status;
   final bool isDeleted;
+  final List<ExpenseAllocation> allocations;
 
   const Expense({
     this.id,
@@ -46,6 +49,7 @@ class Expense {
     this.notes,
     this.status = ExpenseStatus.paid,
     this.isDeleted = false,
+    this.allocations = const [],
   });
 
   Expense copyWith({
@@ -70,6 +74,7 @@ class Expense {
     String? notes,
     ExpenseStatus? status,
     bool? isDeleted,
+    List<ExpenseAllocation>? allocations,
   }) {
     return Expense(
       id: id ?? this.id,
@@ -89,10 +94,12 @@ class Expense {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       locationId: locationId ?? this.locationId,
       receiptId: receiptId ?? this.receiptId,
-      recurringOccurrenceId: recurringOccurrenceId ?? this.recurringOccurrenceId,
+      recurringOccurrenceId:
+          recurringOccurrenceId ?? this.recurringOccurrenceId,
       notes: notes ?? this.notes,
       status: status ?? this.status,
       isDeleted: isDeleted ?? this.isDeleted,
+      allocations: allocations ?? this.allocations,
     );
   }
 
@@ -119,6 +126,7 @@ class Expense {
       'notes': notes,
       'status': status.code,
       'isDeleted': isDeleted ? 1 : 0,
+      'allocationsJson': jsonEncode(allocations.map((a) => a.toMap()).toList()),
     };
   }
 
@@ -131,20 +139,35 @@ class Expense {
       categoryId: map['categoryId'] as String,
       subcategoryId: map['subcategoryId'] as String?,
       personId: map['personId'] as String?,
-      classification: ExpenseClassification.fromCode(map['classification'] as String),
+      classification:
+          ExpenseClassification.fromCode(map['classification'] as String),
       expenseDate: map['expenseDate'] as String,
       expenseTime: map['expenseTime'] as String?,
       createdAt: map['createdAt'] as String,
       updatedAt: map['updatedAt'] as String,
       merchant: map['merchant'] as String?,
       description: map['description'] as String?,
-      paymentMethod: PaymentMethod.fromCode((map['paymentMethod'] as String?) ?? 'Cash'),
+      paymentMethod:
+          PaymentMethod.fromCode((map['paymentMethod'] as String?) ?? 'Cash'),
       locationId: map['locationId'] as String?,
       receiptId: map['receiptId'] as String?,
       recurringOccurrenceId: map['recurringOccurrenceId'] as String?,
       notes: map['notes'] as String?,
       status: ExpenseStatus.fromCode((map['status'] as String?) ?? 'PAID'),
       isDeleted: (map['isDeleted'] as int) == 1,
+      allocations: _allocationsFromJson(map['allocationsJson'] as String?),
     );
+  }
+
+  static List<ExpenseAllocation> _allocationsFromJson(String? value) {
+    if (value == null || value.isEmpty) return const [];
+    try {
+      return (jsonDecode(value) as List)
+          .map((item) =>
+              ExpenseAllocation.fromMap(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
   }
 }

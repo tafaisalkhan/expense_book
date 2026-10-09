@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 class AppTheme {
   static const Color primaryColor = Color(0xFF0F766E); // Deep Teal
   static const Color primaryLight = Color(0xFF14B8A6); // Teal accent
+  static const Color urgentColor = Color(0xFFEA580C); // Orange
   static const Color requiredColor = Color(0xFFDC2626); // Red
   static const Color needColor = Color(0xFFD97706); // Amber
   static const Color optionalColor = Color(0xFF2563EB); // Blue

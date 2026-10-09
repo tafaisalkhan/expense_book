@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy - MyExpense</title>
+    <title>Privacy Policy - Expense Book</title>
     <style>
         :root {
             --primary-color: #008080;
@@ -80,49 +80,42 @@
 <div class="container">
     <h1>Privacy Policy</h1>
     <div class="meta">
-        <strong>Application:</strong> MyExpense (<code>com.myexpense.app</code>) &nbsp;|&nbsp; 
-        <strong>Effective Date:</strong> September 25, 2026
+        <strong>Application:</strong> Expense Book (<code>com.myexpense.book</code>) &nbsp;|&nbsp; 
+        <strong>Effective Date:</strong> October 9, 2026
     </div>
 
-    <p>At <strong>MyExpense</strong>, we prioritize user data privacy, security, and complete transparency. This Privacy Policy outlines how our application collects, processes, and protects your information when you use our mobile expense tracking application, OCR document scanner, SMS financial transaction categorizer, and map-based geofence location notifications.</p>
+    <p>At <strong>Expense Book</strong>, we prioritize user data privacy, security, and complete transparency. This Privacy Policy outlines how our application collects, processes, and protects your information when you use our mobile expense tracking application and OCR document scanner.</p>
 
     <h2>1. Information Collection & Usage</h2>
 
-    <h3>A. Camera & Storage Access (OCR Receipt Scanner)</h3>
+    <h3>A. Local Financial Data (Offline-First)</h3>
     <ul>
-        <li><span class="badge">Purpose</span> Enables users to take photos of paper receipt slips, store bills, or attach PDF receipts for automated extraction of line items, amounts, merchant name, date, and time.</li>
-        <li><span class="badge">Data Protection</span> Optical character recognition is processed locally on your device. Captured images are stored securely in local device storage and are never sold or used for targeted advertising.</li>
+        <li><span class="badge">Purpose</span> Expense amounts, categories, monthly budgets, and profile records are saved locally on your device in a secure SQLite database.</li>
+        <li><span class="badge">Data Protection</span> Data remains strictly on your device and is never uploaded without explicit user backup/export action.</li>
     </ul>
 
-    <h3>B. SMS Reading Permission (<code>RECEIVE_SMS</code>)</h3>
+    <h3>B. Camera & Storage Access (OCR Receipt Scanner)</h3>
     <ul>
-        <li><span class="badge">Purpose</span> Analyzes incoming financial transaction SMS notifications from verified banks and payment systems to automatically prepare draft expense entries for user review.</li>
-        <li><span class="badge">Data Protection</span> SMS parsing takes place entirely <strong>on your device</strong>. Non-financial SMS messages are discarded immediately. SMS contents are <strong>never transmitted</strong> to remote servers or third parties.</li>
+        <li><span class="badge">Purpose</span> Enables users to take photos of paper receipt slips or attach PDF receipts for automated extraction of line items, amounts, merchant name, date, and time.</li>
+        <li><span class="badge">Data Protection</span> Optical character recognition is processed locally on your device. Captured images are stored securely in local device storage and are never sold or shared.</li>
     </ul>
 
-    <h3>C. Location Services & Geofencing (<code>ACCESS_FINE_LOCATION</code>)</h3>
+    <h3>C. Google Authentication</h3>
     <ul>
-        <li><span class="badge">Purpose</span> Displays interactive OpenStreetMap location pickers, supports custom geofence pin creation (e.g. Petrol Stations, Supermarkets, Markets), and triggers local reminders upon departure.</li>
-        <li><span class="badge">Data Protection</span> Geofence coordinates remain stored locally in your device app state. Location data is never broadcasted to tracking networks.</li>
-    </ul>
-
-    <h3>D. Local Data Storage & Control</h3>
-    <ul>
-        <li>All expense records, budget limits, category assignments, and family member tags are stored in encrypted SQLite storage on your physical device.</li>
-        <li>You retain complete ownership of your data with options to edit, export to CSV/PDF, or purge all records at any time.</li>
+        <li><span class="badge">Purpose</span> Google Sign-In email and display name are used solely for account identity verification via Firebase Auth.</li>
     </ul>
 
     <h2>2. Data Sharing & Third Parties</h2>
-    <p>We do <strong>NOT</strong> sell, trade, rent, or commercialize your personal or financial data under any circumstances. External map tiles are rendered using OpenStreetMap public tile servers without transmitting user identity or financial details.</p>
+    <p>We do <strong>NOT</strong> sell, trade, rent, or commercialize your personal or financial data under any circumstances. Non-personal advertising data may be processed by Google AdMob unless disabled via the "Remove Ads" in-app purchase.</p>
 
     <h2>3. Security Standards</h2>
-    <p>MyExpense incorporates strict platform security features, including local database isolation, permission-sandboxed runtime Android rules, and HTTPS transport layer security for optional network requests.</p>
+    <p>Expense Book incorporates strict platform security features, including local database isolation and permission-sandboxed runtime Android rules.</p>
 
     <h2>4. User Rights & Data Deletion</h2>
-    <p>You can manage permissions (Camera, SMS, Location) anytime through Android OS settings. You may permanently delete your data by clearing app data or uninstalling the app.</p>
+    <p>You can manage permissions (Camera, Storage, Notifications) anytime through Android OS settings. You may permanently delete your data by clearing app data or uninstalling the app.</p>
 
     <h2>5. Contact Us</h2>
-    <p>For any privacy inquiries regarding MyExpense, please contact:</p>
+    <p>For any privacy inquiries regarding Expense Book, please contact:</p>
     <ul>
         <li>Developer: <strong>Muhammad Faisal Khan</strong></li>
         <li>Email: <a href="mailto:android.nextlevel@gmail.com">android.nextlevel@gmail.com</a></li>
@@ -130,7 +123,7 @@
     </ul>
 
     <footer>
-        &copy; 2026 MyExpense Application (Muhammad Faisal Khan). All rights reserved.
+        &copy; 2026 Expense Book (Muhammad Faisal Khan). All rights reserved.
     </footer>
 </div>
 

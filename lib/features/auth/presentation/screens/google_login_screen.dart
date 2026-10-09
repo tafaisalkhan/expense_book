@@ -58,13 +58,8 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
           context.go('/dashboard');
         } else {
           setState(() {
-            _errorMessage =
-                'Google Play Services sign-in was interrupted. You can also tap "Sign in with Google Email Address" below to enter your email directly.';
-          });
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) {
-              _showManualEmailDialog(context);
-            }
+            _errorMessage = ref.read(authProvider.notifier).lastSignInError ??
+                'Google Sign-In could not be completed. Please try again.';
           });
         }
       }
@@ -77,80 +72,6 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
         });
       }
     }
-  }
-
-  void _showManualEmailDialog(BuildContext context) {
-    final emailController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Sign in with Google Email'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Enter your Google email address:',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Email Address',
-                hintText: 'yourname@gmail.com',
-                prefixIcon: Icon(Icons.email),
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final email = emailController.text.trim();
-              if (email.isEmpty || !email.contains('@')) return;
-
-              final hasInternet = await NetworkHelper.hasInternetConnection();
-              if (!hasInternet) {
-                Navigator.pop(ctx);
-                if (mounted) {
-                  setState(() {
-                    _isLoading = false;
-                    _errorMessage =
-                        'Internet not available right now. Please check your network connection and try again.';
-                  });
-                }
-                return;
-              }
-
-              Navigator.pop(ctx);
-              setState(() {
-                _isLoading = true;
-              });
-              final success = await ref
-                  .read(authProvider.notifier)
-                  .signInWithGoogleEmail(email);
-              if (mounted) {
-                setState(() {
-                  _isLoading = false;
-                });
-                if (success) {
-                  context.go('/dashboard');
-                }
-              }
-            },
-            child: const Text('Sign In'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -197,7 +118,8 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Sign in with Google OAuth to automatically load your email address and profile name.',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.4),
+                  style: TextStyle(
+                      color: Colors.grey[600], fontSize: 13, height: 1.4),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
@@ -205,7 +127,8 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                 // Pure 1-Tap Google Sign-In Card
                 Card(
                   elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
@@ -213,17 +136,18 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                       children: [
                         const Text(
                           'Google Sign-In',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 18),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 6),
                         Text(
                           '1-Tap Google Sign-In (Auto-loads email & full name)',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          style:
+                              TextStyle(color: Colors.grey[600], fontSize: 12),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
-
                         if (authState.loggedOutNotice != null) ...[
                           Container(
                             padding: const EdgeInsets.all(12),
@@ -234,12 +158,16 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.warning_amber_rounded, color: Colors.amber[900], size: 20),
+                                Icon(Icons.warning_amber_rounded,
+                                    color: Colors.amber[900], size: 20),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     authState.loggedOutNotice!,
-                                    style: TextStyle(color: Colors.amber[900], fontSize: 12, fontWeight: FontWeight.bold),
+                                    style: TextStyle(
+                                        color: Colors.amber[900],
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ],
@@ -247,7 +175,6 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                           ),
                           const SizedBox(height: 16),
                         ],
-
                         if (_errorMessage != null) ...[
                           Container(
                             padding: const EdgeInsets.all(12),
@@ -258,13 +185,13 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                             ),
                             child: Text(
                               _errorMessage!,
-                              style: const TextStyle(color: Colors.red, fontSize: 12),
+                              style: const TextStyle(
+                                  color: Colors.red, fontSize: 12),
                               textAlign: TextAlign.center,
                             ),
                           ),
                           const SizedBox(height: 16),
                         ],
-
                         SizedBox(
                           height: 52,
                           child: ElevatedButton(
@@ -282,7 +209,8 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                                 ? const SizedBox(
                                     height: 24,
                                     width: 24,
-                                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2.5),
                                   )
                                 : Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
@@ -315,12 +243,6 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                                     ],
                                   ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextButton.icon(
-                          onPressed: _isLoading ? null : () => _showManualEmailDialog(context),
-                          icon: const Icon(Icons.email_outlined, size: 18),
-                          label: const Text('Sign in with Google Email Address'),
                         ),
                       ],
                     ),

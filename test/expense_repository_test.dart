@@ -44,6 +44,7 @@ void main() {
             notes TEXT,
             status TEXT NOT NULL DEFAULT 'PAID',
             isDeleted INTEGER NOT NULL DEFAULT 0
+            ,allocationsJson TEXT NOT NULL DEFAULT '[]'
           );
         ''');
         await db.execute('''
@@ -63,7 +64,8 @@ void main() {
     await testDb.close();
   });
 
-  test('Backdated expense counts against expenseDate and NOT createdAt', () async {
+  test('Backdated expense counts against expenseDate and NOT createdAt',
+      () async {
     const uuidGen = Uuid();
     final expense = Expense(
       uuid: uuidGen.v4(),
@@ -105,20 +107,28 @@ void main() {
     );
 
     final inserted = await repository.addExpense(expense);
-    expect(await repository.getTotalSpentForPeriod(startDate: '2026-09-24', endDate: '2026-09-24'), equals(1200.0));
+    expect(
+        await repository.getTotalSpentForPeriod(
+            startDate: '2026-09-24', endDate: '2026-09-24'),
+        equals(1200.0));
 
     await repository.deleteExpense(inserted.uuid);
-    expect(await repository.getTotalSpentForPeriod(startDate: '2026-09-24', endDate: '2026-09-24'), equals(0.0));
+    expect(
+        await repository.getTotalSpentForPeriod(
+            startDate: '2026-09-24', endDate: '2026-09-24'),
+        equals(0.0));
   });
 
-  test('Zero-spend confirmation is stored and does not create an expense', () async {
+  test('Zero-spend confirmation is stored and does not create an expense',
+      () async {
     const targetDate = '2026-09-22';
     await repository.confirmZeroSpendDay(targetDate);
 
     final isConfirmed = await repository.isZeroSpendDayConfirmed(targetDate);
     expect(isConfirmed, isTrue);
 
-    final totalSpent = await repository.getTotalSpentForPeriod(startDate: targetDate, endDate: targetDate);
+    final totalSpent = await repository.getTotalSpentForPeriod(
+        startDate: targetDate, endDate: targetDate);
     expect(totalSpent, equals(0.0));
   });
 }

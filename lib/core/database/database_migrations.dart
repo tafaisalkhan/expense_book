@@ -74,6 +74,7 @@ class DatabaseMigrations {
         notes TEXT,
         status TEXT NOT NULL DEFAULT 'PAID',
         isDeleted INTEGER NOT NULL DEFAULT 0
+        ,allocationsJson TEXT NOT NULL DEFAULT '[]'
       );
     ''');
 
@@ -117,11 +118,15 @@ class DatabaseMigrations {
     ''');
 
     // 8. Create Indexes
-    await db.execute('CREATE INDEX idx_expenses_date ON expenses(expenseDate);');
-    await db.execute('CREATE INDEX idx_expenses_category ON expenses(categoryId);');
+    await db
+        .execute('CREATE INDEX idx_expenses_date ON expenses(expenseDate);');
+    await db
+        .execute('CREATE INDEX idx_expenses_category ON expenses(categoryId);');
     await db.execute('CREATE INDEX idx_expenses_person ON expenses(personId);');
     await db.execute('CREATE INDEX idx_expenses_status ON expenses(status);');
     await db.execute('CREATE INDEX idx_budgets_period ON budgets(period);');
+
+    await _createRecurringTables(db);
 
     // Seed Categories & Subcategories from JSON
     await ensureDefaultCategories(db);
@@ -132,7 +137,8 @@ class DatabaseMigrations {
 
   static Future<void> ensureDefaultCategories(Database db) async {
     try {
-      final jsonString = await rootBundle.loadString('assets/config/default_categories.json');
+      final jsonString =
+          await rootBundle.loadString('assets/config/default_categories.json');
       final List<dynamic> catList = json.decode(jsonString);
 
       const uuidGen = Uuid();
@@ -204,7 +210,8 @@ class DatabaseMigrations {
     await batch.commit(noResult: true);
   }
 
-  static Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
+  static Future<void> onUpgrade(
+      Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.execute('''
         CREATE TABLE IF NOT EXISTS budgets (
@@ -219,7 +226,8 @@ class DatabaseMigrations {
           updatedAt TEXT NOT NULL
         );
       ''');
-      await db.execute('CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period);');
+      await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period);');
     }
 
     if (oldVersion < 3) {
@@ -238,5 +246,29 @@ class DatabaseMigrations {
         );
       ''');
     }
+    if (oldVersion < 4) {
+      await db.execute(
+          "ALTER TABLE expenses ADD COLUMN allocationsJson TEXT NOT NULL DEFAULT '[]'");
+      await _createRecurringTables(db);
+    }
+  }
+
+  static Future<void> _createRecurringTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS recurring_expenses (
+        uuid TEXT PRIMARY KEY,
+        templateJson TEXT NOT NULL,
+        frequency TEXT NOT NULL,
+        intervalDays INTEGER NOT NULL DEFAULT 1,
+        dayOfMonth INTEGER,
+        nextDueDate TEXT NOT NULL,
+        isActive INTEGER NOT NULL DEFAULT 1,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      );
+    ''');
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_recurring_occurrence ON expenses(recurringOccurrenceId) WHERE recurringOccurrenceId IS NOT NULL;',
+    );
   }
 }

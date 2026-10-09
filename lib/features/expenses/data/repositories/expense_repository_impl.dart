@@ -117,7 +117,8 @@ class SqliteExpenseRepository implements IExpenseRepository {
   }) async {
     final db = await appDatabase.database;
 
-    String where = "expenseDate >= ? AND expenseDate <= ? AND isDeleted = 0 AND status IN ('PAID', 'APPROVED')";
+    String where =
+        "expenseDate >= ? AND expenseDate <= ? AND isDeleted = 0 AND status IN ('PAID', 'APPROVED')";
     List<dynamic> args = [startDate, endDate];
 
     if (personId != null) {
@@ -159,6 +160,7 @@ class SqliteExpenseRepository implements IExpenseRepository {
     ''', [startDate, endDate]);
 
     final Map<ExpenseClassification, double> map = {
+      ExpenseClassification.urgent: 0.0,
       ExpenseClassification.required: 0.0,
       ExpenseClassification.optional: 0.0,
     };
@@ -181,7 +183,8 @@ class SqliteExpenseRepository implements IExpenseRepository {
   }) async {
     final db = await appDatabase.database;
 
-    String where = "expenseDate >= ? AND expenseDate <= ? AND isDeleted = 0 AND status IN ('PAID', 'APPROVED')";
+    String where =
+        "expenseDate >= ? AND expenseDate <= ? AND isDeleted = 0 AND status IN ('PAID', 'APPROVED')";
     List<dynamic> args = [startDate, endDate];
 
     if (personId != null) {
@@ -257,6 +260,32 @@ class SqliteExpenseRepository implements IExpenseRepository {
       orderBy: 'expenseDate DESC, id DESC',
     );
     return maps.map((map) => Expense.fromMap(map)).toList();
+  }
+
+  @override
+  Future<void> approveExpense(String uuid) async {
+    final db = await appDatabase.database;
+    await db.update(
+        'expenses',
+        {
+          'status': 'APPROVED',
+          'updatedAt': DateTime.now().toIso8601String(),
+        },
+        where: 'uuid = ? AND status = ?',
+        whereArgs: [uuid, 'PENDING']);
+  }
+
+  @override
+  Future<void> rejectExpense(String uuid) async {
+    final db = await appDatabase.database;
+    await db.update(
+        'expenses',
+        {
+          'isDeleted': 1,
+          'updatedAt': DateTime.now().toIso8601String(),
+        },
+        where: 'uuid = ? AND status = ?',
+        whereArgs: [uuid, 'PENDING']);
   }
 
   @override

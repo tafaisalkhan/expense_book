@@ -64,7 +64,8 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                             },
                           )
                         : null,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
                   onChanged: (val) {
@@ -79,19 +80,35 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                       FilterChip(
                         label: const Text('All'),
                         selected: _selectedClassification == null,
-                        onSelected: (_) => setState(() => _selectedClassification = null),
+                        onSelected: (_) =>
+                            setState(() => _selectedClassification = null),
+                      ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        label: const Text('Urgent'),
+                        selected: _selectedClassification ==
+                            ExpenseClassification.urgent,
+                        onSelected: (_) => setState(() =>
+                            _selectedClassification =
+                                ExpenseClassification.urgent),
                       ),
                       const SizedBox(width: 8),
                       FilterChip(
                         label: const Text('Required'),
-                        selected: _selectedClassification == ExpenseClassification.required,
-                        onSelected: (_) => setState(() => _selectedClassification = ExpenseClassification.required),
+                        selected: _selectedClassification ==
+                            ExpenseClassification.required,
+                        onSelected: (_) => setState(() =>
+                            _selectedClassification =
+                                ExpenseClassification.required),
                       ),
                       const SizedBox(width: 8),
                       FilterChip(
                         label: const Text('Optional'),
-                        selected: _selectedClassification == ExpenseClassification.optional,
-                        onSelected: (_) => setState(() => _selectedClassification = ExpenseClassification.optional),
+                        selected: _selectedClassification ==
+                            ExpenseClassification.optional,
+                        onSelected: (_) => setState(() =>
+                            _selectedClassification =
+                                ExpenseClassification.optional),
                       ),
                     ],
                   ),
@@ -104,12 +121,15 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
           Expanded(
             child: recentExpensesAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, _) => Center(child: Text('Error loading expenses: $err')),
+              error: (err, _) =>
+                  Center(child: Text('Error loading expenses: $err')),
               data: (expenses) {
                 var filtered = expenses;
 
                 if (_selectedClassification != null) {
-                  filtered = filtered.where((e) => e.classification == _selectedClassification).toList();
+                  filtered = filtered
+                      .where((e) => e.classification == _selectedClassification)
+                      .toList();
                 }
 
                 if (_searchQuery.isNotEmpty) {
@@ -126,7 +146,8 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                 }
 
                 if (filtered.isEmpty) {
-                  return const Center(child: Text('No matching expenses found.'));
+                  return const Center(
+                      child: Text('No matching expenses found.'));
                 }
 
                 return ListView.separated(
@@ -138,6 +159,23 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                     final iconName = cat?.icon ?? item.categoryId;
                     final catName = cat?.name ?? item.categoryId;
 
+                    String? subCatName;
+                    if (item.subcategoryId != null &&
+                        item.subcategoryId!.isNotEmpty &&
+                        cat != null) {
+                      for (final s in cat.subcategories) {
+                        if (s.id == item.subcategoryId ||
+                            s.uuid == item.subcategoryId) {
+                          subCatName = s.name;
+                          break;
+                        }
+                      }
+                    }
+                    final fullCategoryDisplay =
+                        (subCatName != null && subCatName.isNotEmpty)
+                            ? '$catName › $subCatName'
+                            : catName;
+
                     return ListTile(
                       onTap: () => context.push('/add', extra: item),
                       leading: CategoryIconHelper.buildCategoryAvatar(
@@ -145,11 +183,13 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                         categoryId: item.categoryId,
                       ),
                       title: Text(
-                        item.merchant?.isNotEmpty == true ? item.merchant! : catName,
+                        item.merchant?.isNotEmpty == true
+                            ? item.merchant!
+                            : fullCategoryDisplay,
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       subtitle: Text(
-                        '${item.merchant?.isNotEmpty == true ? '$catName • ' : ''}${DateFormatters.formatDateDisplay(DateFormatters.parseDateIso(item.expenseDate))} • ${item.paymentMethod.label}',
+                        '${item.merchant?.isNotEmpty == true ? '$fullCategoryDisplay • ' : ''}${DateFormatters.formatDateDisplay(DateFormatters.parseDateIso(item.expenseDate))} • ${item.paymentMethod.label}',
                         style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                       ),
                       trailing: Row(
@@ -161,20 +201,23 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                             children: [
                               Text(
                                 CurrencyFormatters.format(item.amount),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 15),
                               ),
                               Text(
                                 item.classification.label,
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: _getClassificationColor(item.classification),
+                                  color: _getClassificationColor(
+                                      item.classification),
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
                           ),
                           PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_vert, size: 20, color: Colors.grey),
+                            icon: const Icon(Icons.more_vert,
+                                size: 20, color: Colors.grey),
                             onSelected: (action) async {
                               if (action == 'edit') {
                                 context.push('/add', extra: item);
@@ -188,7 +231,8 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                                     ),
                                     actions: [
                                       TextButton(
-                                        onPressed: () => Navigator.pop(ctx, false),
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
                                         child: const Text('Cancel'),
                                       ),
                                       ElevatedButton(
@@ -196,7 +240,8 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                                           backgroundColor: Colors.red,
                                           foregroundColor: Colors.white,
                                         ),
-                                        onPressed: () => Navigator.pop(ctx, true),
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
                                         child: const Text('Delete'),
                                       ),
                                     ],
@@ -215,7 +260,8 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                                 value: 'edit',
                                 child: Row(
                                   children: [
-                                    Icon(Icons.edit_outlined, size: 18, color: Colors.blue),
+                                    Icon(Icons.edit_outlined,
+                                        size: 18, color: Colors.blue),
                                     SizedBox(width: 10),
                                     Text('Edit Expense'),
                                   ],
@@ -225,9 +271,11 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                                 value: 'delete',
                                 child: Row(
                                   children: [
-                                    Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                                    Icon(Icons.delete_outline,
+                                        size: 18, color: Colors.red),
                                     SizedBox(width: 10),
-                                    Text('Delete Expense', style: TextStyle(color: Colors.red)),
+                                    Text('Delete Expense',
+                                        style: TextStyle(color: Colors.red)),
                                   ],
                                 ),
                               ),
@@ -248,6 +296,8 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
 
   Color _getClassificationColor(ExpenseClassification classification) {
     switch (classification) {
+      case ExpenseClassification.urgent:
+        return AppTheme.urgentColor;
       case ExpenseClassification.required:
         return AppTheme.requiredColor;
       case ExpenseClassification.optional:

@@ -11,7 +11,22 @@ class DateFormatters {
 
   static DateTime parseDateIso(String isoString) => _isoDateFormat.parse(isoString);
 
-  static String formatDateDisplay(DateTime date) => _displayDateFormat.format(date);
+  static String formatDateDisplay(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final target = DateTime(date.year, date.month, date.day);
+
+    if (target.isAtSameMomentAs(today)) {
+      return 'Today';
+    } else if (target.isAtSameMomentAs(yesterday)) {
+      return 'Yesterday';
+    } else {
+      return _displayDateFormat.format(date);
+    }
+  }
+
+  static String formatDateExactDisplay(DateTime date) => _displayDateFormat.format(date);
 
   static String formatDateShort(DateTime date) => _shortDateFormat.format(date);
 

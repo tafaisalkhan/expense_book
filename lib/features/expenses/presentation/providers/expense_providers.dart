@@ -9,6 +9,12 @@ final recentExpensesProvider = FutureProvider<List<Expense>>((ref) async {
   return await repo.getRecentExpenses(limit: 20);
 });
 
+final pendingRecurringExpensesProvider =
+    FutureProvider<List<Expense>>((ref) async {
+  await ref.watch(recurringExpenseServiceProvider).generateDueExpenses();
+  return ref.watch(expenseRepositoryProvider).getPendingExpenses();
+});
+
 class ExpenseNotifier extends StateNotifier<AsyncValue<void>> {
   final Ref ref;
 
@@ -56,6 +62,23 @@ class ExpenseNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  Future<void> approveExpense(String uuid) async {
+    await ref.read(expenseRepositoryProvider).approveExpense(uuid);
+    _refreshExpenses();
+  }
+
+  Future<void> rejectExpense(String uuid) async {
+    await ref.read(expenseRepositoryProvider).rejectExpense(uuid);
+    _refreshExpenses();
+  }
+
+  void _refreshExpenses() {
+    ref.invalidate(pendingRecurringExpensesProvider);
+    ref.invalidate(recentExpensesProvider);
+    ref.invalidate(dashboardDataProvider);
+    ref.invalidate(calendarMonthDataProvider);
+  }
+
   Future<void> confirmZeroSpend(String date) async {
     state = const AsyncValue.loading();
     try {
@@ -70,6 +93,7 @@ class ExpenseNotifier extends StateNotifier<AsyncValue<void>> {
   }
 }
 
-final expenseNotifierProvider = StateNotifierProvider<ExpenseNotifier, AsyncValue<void>>((ref) {
+final expenseNotifierProvider =
+    StateNotifierProvider<ExpenseNotifier, AsyncValue<void>>((ref) {
   return ExpenseNotifier(ref);
 });

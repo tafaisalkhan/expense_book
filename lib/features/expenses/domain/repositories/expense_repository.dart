@@ -34,6 +34,8 @@ abstract class IExpenseRepository {
   });
   Future<List<Expense>> getRecentExpenses({int limit = 10});
   Future<List<Expense>> getPendingExpenses();
+  Future<void> approveExpense(String uuid);
+  Future<void> rejectExpense(String uuid);
   Future<void> confirmZeroSpendDay(String date);
   Future<bool> isZeroSpendDayConfirmed(String date);
 }

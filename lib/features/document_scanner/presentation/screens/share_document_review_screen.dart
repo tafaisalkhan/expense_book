@@ -291,7 +291,7 @@ class _ShareDocumentReviewScreenState extends ConsumerState<ShareDocumentReviewS
                     ),
                     const SizedBox(height: 14),
 
-                    // Classification Selector (Required / Optional / Investment)
+                    // Classification Selector (Urgent / Required / Optional)
                     const Text('Expense Classification:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     const SizedBox(height: 6),
                     Wrap(
@@ -300,9 +300,11 @@ class _ShareDocumentReviewScreenState extends ConsumerState<ShareDocumentReviewS
                         final isSelected = chosenClass == cls;
                         return ChoiceChip(
                           label: Text(
-                            cls == ExpenseClassification.required
+                            cls == ExpenseClassification.urgent
+                                ? '⚠️ Urgent'
+                                : cls == ExpenseClassification.required
                                 ? '📌 Required (Need)'
-                                : (cls == ExpenseClassification.optional ? '🎉 Optional (Want)' : '📈 Investment'),
+                                : '🎉 Optional (Want)',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -310,9 +312,11 @@ class _ShareDocumentReviewScreenState extends ConsumerState<ShareDocumentReviewS
                             ),
                           ),
                           selected: isSelected,
-                          selectedColor: cls == ExpenseClassification.required
+                          selectedColor: cls == ExpenseClassification.urgent
+                              ? Colors.deepOrange.shade700
+                              : cls == ExpenseClassification.required
                               ? Colors.red.shade700
-                              : (cls == ExpenseClassification.optional ? Colors.amber.shade800 : Colors.blue.shade700),
+                              : Colors.amber.shade800,
                           onSelected: (val) {
                             if (val) setDialogState(() => chosenClass = cls);
                           },
@@ -886,13 +890,17 @@ class _ShareDocumentReviewScreenState extends ConsumerState<ShareDocumentReviewS
                                               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                               padding: EdgeInsets.zero,
                                               labelStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
-                                              backgroundColor: item.classification == ExpenseClassification.required
+                                              backgroundColor: item.classification == ExpenseClassification.urgent
+                                                  ? Colors.deepOrange.shade100
+                                                  : item.classification == ExpenseClassification.required
                                                   ? Colors.red.shade100
-                                                  : (item.classification == ExpenseClassification.optional ? Colors.amber.shade100 : Colors.blue.shade100),
+                                                  : Colors.amber.shade100,
                                               label: Text(
-                                                item.classification == ExpenseClassification.required
+                                                item.classification == ExpenseClassification.urgent
+                                                    ? '⚠️ Urgent'
+                                                    : item.classification == ExpenseClassification.required
                                                     ? '📌 Required'
-                                                    : (item.classification == ExpenseClassification.optional ? '🎉 Optional' : '📈 Investment'),
+                                                    : '🎉 Optional',
                                               ),
                                             ),
                                             if (item.categoryId != null)

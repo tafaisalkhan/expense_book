@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
@@ -11,6 +12,12 @@ import 'package:myexpence/features/security/presentation/screens/app_lock_screen
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Lock orientation strictly to portrait mode
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
 
   // Catch unhandled Flutter UI errors safely without crashing app on startup
   FlutterError.onError = (FlutterErrorDetails details) {

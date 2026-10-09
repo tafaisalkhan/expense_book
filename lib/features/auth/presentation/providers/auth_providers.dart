@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -24,6 +23,10 @@ import 'package:myexpence/features/subscription/presentation/providers/subscript
 
 class AuthNotifier extends StateNotifier<AuthUser> {
   static const String projectId = FirebaseConfig.projectId;
+  static const String _googleServerClientId =
+      '61987252093-s5oc67k22aj8gs8947rmsdsaemjlpfuq.apps.googleusercontent.com';
+  static final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  static Future<void>? _googleSignInInitialization;
   static const String _keyIsLoggedIn = 'auth_is_logged_in';
   static const String _keyUserEmail = 'auth_user_email';
   static const String _keyUserUid = 'auth_user_uid';
@@ -34,6 +37,27 @@ class AuthNotifier extends StateNotifier<AuthUser> {
   String? _currentSessionToken;
   StreamSubscription<DocumentSnapshot>? _activeSessionSub;
   Timer? _sessionPollTimer;
+  String? _lastSignInError;
+
+  String? get lastSignInError => _lastSignInError;
+
+  Future<bool> signInWithGoogleEmail(String email) async {
+    if (!email.contains('@')) return false;
+    final name = email.split('@').first;
+    final uid = 'google_${email.toLowerCase().replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}';
+    state = state.copyWith(
+      isLoggedIn: true,
+      email: email,
+      displayName: name,
+      uid: uid,
+    );
+    return true;
+  }
+
+  Future<void> _ensureGoogleSignInInitialized() {
+    return _googleSignInInitialization ??=
+        _googleSignIn.initialize(serverClientId: _googleServerClientId);
+  }
 
   AuthNotifier([this._ref]) : super(AuthUser.anonymous()) {
     _loadAuthState();
@@ -45,9 +69,12 @@ class AuthNotifier extends StateNotifier<AuthUser> {
       FirebaseAuth.instance.authStateChanges().listen((user) {
         if (user != null) {
           final userEmail = user.email ?? '';
-          final userName = (user.displayName != null && user.displayName!.isNotEmpty)
-              ? user.displayName!
-              : (userEmail.contains('@') ? userEmail.split('@').first : 'Google User');
+          final userName =
+              (user.displayName != null && user.displayName!.isNotEmpty)
+                  ? user.displayName!
+                  : (userEmail.contains('@')
+                      ? userEmail.split('@').first
+                      : 'Google User');
 
           if (userEmail.isNotEmpty && state.email != userEmail) {
             _saveAndSetState(user.uid, userEmail, userName);
@@ -63,7 +90,8 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     return '${timestamp}_$randomVal';
   }
 
-  Future<void> _updateCloudSession(String docKey, String token, String email) async {
+  Future<void> _updateCloudSession(
+      String docKey, String token, String email) async {
     // 1. Update Firebase Storage active session record
     try {
       final jsonBytes = utf8.encode(jsonEncode({
@@ -71,7 +99,8 @@ class AuthNotifier extends StateNotifier<AuthUser> {
         'email': email,
         'lastLoginAt': DateTime.now().millisecondsSinceEpoch,
       }));
-      final storageRef = FirebaseStorage.instance.ref().child('active_sessions/$docKey.json');
+      final storageRef =
+          FirebaseStorage.instance.ref().child('active_sessions/$docKey.json');
       await storageRef.putData(Uint8List.fromList(jsonBytes));
     } catch (e) {
       debugPrint('Firebase Storage active session registration notice: $e');
@@ -79,7 +108,10 @@ class AuthNotifier extends StateNotifier<AuthUser> {
 
     // 2. Update Cloud Firestore active session record
     try {
-      await FirebaseFirestore.instance.collection('active_sessions').doc(docKey).set({
+      await FirebaseFirestore.instance
+          .collection('active_sessions')
+          .doc(docKey)
+          .set({
         'sessionToken': token,
         'email': email,
         'lastLoginAt': FieldValue.serverTimestamp(),
@@ -148,8 +180,10 @@ class AuthNotifier extends StateNotifier<AuthUser> {
                 _currentSessionToken!.isNotEmpty &&
                 remoteToken != _currentSessionToken &&
                 remoteToken != registeredToken) {
-              debugPrint('⚠️ Remote active session token ($remoteToken) != local token ($_currentSessionToken). Triggering logout popup...');
-              triggerLogoutDialog('You have been logged out because your account was logged into from another device.');
+              debugPrint(
+                  '⚠️ Remote active session token ($remoteToken) != local token ($_currentSessionToken). Triggering logout popup...');
+              triggerLogoutDialog(
+                  'You have been logged out because your account was logged into from another device.');
             }
           }
         },
@@ -173,7 +207,8 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     String? email = firebaseUser?.email ?? prefs.getString(_keyUserEmail);
     String? name = firebaseUser?.displayName ?? prefs.getString(_keyUserName);
     String uid = firebaseUser?.uid ?? prefs.getString(_keyUserUid) ?? '';
-    bool isLoggedIn = firebaseUser != null || (prefs.getBool(_keyIsLoggedIn) ?? false);
+    bool isLoggedIn =
+        firebaseUser != null || (prefs.getBool(_keyIsLoggedIn) ?? false);
 
     if (isLoggedIn && email != null && email.isNotEmpty) {
       final displayName = (name != null && name.isNotEmpty)
@@ -192,74 +227,65 @@ class AuthNotifier extends StateNotifier<AuthUser> {
   }
 
   Future<bool> signInWithGoogle() async {
+    _lastSignInError = null;
     try {
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        serverClientId: '61987252093-s5oc67k22aj8gs8947rmsdsaemjlpfuq.apps.googleusercontent.com',
-        scopes: ['email', 'profile'],
-      );
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      await _ensureGoogleSignInInitialized();
 
-      if (googleUser != null) {
-        String uid = googleUser.id;
-        String userEmail = googleUser.email;
-        String userName = (googleUser.displayName != null && googleUser.displayName!.isNotEmpty)
-            ? googleUser.displayName!
-            : userEmail.split('@').first;
-
-        try {
-          final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-          if (googleAuth.idToken != null || googleAuth.accessToken != null) {
-            final OAuthCredential credential = GoogleAuthProvider.credential(
-              accessToken: googleAuth.accessToken,
-              idToken: googleAuth.idToken,
-            );
-
-            final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-            if (userCredential.user != null) {
-              uid = userCredential.user!.uid;
-              userEmail = userCredential.user!.email ?? userEmail;
-              if (userCredential.user!.displayName != null && userCredential.user!.displayName!.isNotEmpty) {
-                userName = userCredential.user!.displayName!;
-              }
-            }
-          } else {
-            final UserCredential anonUser = await FirebaseAuth.instance.signInAnonymously();
-            if (anonUser.user != null) {
-              uid = anonUser.user!.uid;
-            }
-          }
-        } catch (e) {
-          debugPrint('Firebase Auth credential exchange fallback: $e');
-          try {
-            final UserCredential anonUser = await FirebaseAuth.instance.signInAnonymously();
-            if (anonUser.user != null) {
-              uid = anonUser.user!.uid;
-            }
-          } catch (_) {}
-        }
-
-        return await _saveAndSetState(uid, userEmail, userName);
+      if (!_googleSignIn.supportsAuthenticate()) {
+        _lastSignInError = 'Google Sign-In is not supported on this device.';
+        return false;
       }
+
+      final GoogleSignInAccount googleUser = await _googleSignIn.authenticate(
+        scopeHint: const ['email', 'profile'],
+      );
+
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      if (googleAuth.idToken == null || googleAuth.idToken!.isEmpty) {
+        _lastSignInError = 'Google did not return a valid identity token.';
+        return false;
+      }
+
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+      );
+      final UserCredential userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+      final firebaseUser = userCredential.user;
+      if (firebaseUser == null) {
+        _lastSignInError =
+            'Firebase could not authenticate this Google account.';
+        return false;
+      }
+
+      final userEmail = firebaseUser.email ?? googleUser.email;
+      final userName = (firebaseUser.displayName?.isNotEmpty ?? false)
+          ? firebaseUser.displayName!
+          : (googleUser.displayName?.isNotEmpty ?? false)
+              ? googleUser.displayName!
+              : userEmail.split('@').first;
+
+      return await _saveAndSetState(firebaseUser.uid, userEmail, userName);
+    } on GoogleSignInException catch (e, stack) {
+      _lastSignInError = e.code == GoogleSignInExceptionCode.canceled
+          ? 'Google Sign-In was cancelled.'
+          : 'Google Sign-In failed (${e.code.name}). ${e.description ?? ''}'
+              .trim();
+      debugPrint('Google Sign-In Exception: $e');
+      debugPrint(stack.toString());
+    } on FirebaseAuthException catch (e, stack) {
+      _lastSignInError =
+          'Firebase authentication failed (${e.code}). ${e.message ?? ''}'
+              .trim();
+      debugPrint('Firebase Auth Exception: $e');
+      debugPrint(stack.toString());
     } catch (e, stack) {
+      _lastSignInError = 'Unable to sign in: $e';
       debugPrint('Google Sign-In Exception: $e');
       debugPrint(stack.toString());
     }
 
     return false;
-  }
-
-  Future<bool> signInWithGoogleEmail(String email, {String? name}) async {
-    final trimmedEmail = email.trim();
-    if (trimmedEmail.isEmpty || !trimmedEmail.contains('@')) {
-      return false;
-    }
-
-    final displayName = (name != null && name.trim().isNotEmpty)
-        ? name.trim()
-        : trimmedEmail.split('@').first;
-    final uid = 'google_${trimmedEmail.hashCode}';
-
-    return await _saveAndSetState(uid, trimmedEmail, displayName);
   }
 
   void _invalidateAllDataProviders() {
@@ -312,7 +338,8 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     if (_ref != null) {
       try {
         final backupService = FirebaseCloudBackupService();
-        await backupService.restoreDataFromFirebase(_ref!, optionalEmail: email);
+        await backupService.restoreDataFromFirebase(_ref,
+            optionalEmail: email);
       } catch (e) {
         debugPrint('Cloud restore notice on sign in: $e');
       }
@@ -343,10 +370,15 @@ class AuthNotifier extends StateNotifier<AuthUser> {
 
     final email = state.email;
     if (email != null && email.isNotEmpty) {
-      final sanitizedEmail = email.toLowerCase().trim().replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
+      final sanitizedEmail =
+          email.toLowerCase().trim().replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
       final docKey = 'user_$sanitizedEmail';
       try {
-        FirebaseFirestore.instance.collection('active_sessions').doc(docKey).delete().catchError((_) {});
+        FirebaseFirestore.instance
+            .collection('active_sessions')
+            .doc(docKey)
+            .delete()
+            .catchError((_) {});
       } catch (_) {}
     }
 
@@ -359,10 +391,11 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     } catch (_) {}
 
     try {
-      await GoogleSignIn().disconnect();
+      await _ensureGoogleSignInInitialized();
+      await _googleSignIn.disconnect();
     } catch (_) {}
     try {
-      await GoogleSignIn().signOut();
+      await _googleSignIn.signOut();
       await FirebaseAuth.instance.signOut();
     } catch (_) {}
 
@@ -412,17 +445,24 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     // 2. Perform local data clearing & auth sign-out in parallel
     final List<Future> cleanupFutures = [];
 
+    try {
+      await _ensureGoogleSignInInitialized();
+    } catch (_) {}
+
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       cleanupFutures.add(
-        user.delete().timeout(const Duration(seconds: 1), onTimeout: () {}).catchError((_) {}),
+        user
+            .delete()
+            .timeout(const Duration(seconds: 1), onTimeout: () {})
+            .catchError((_) {}),
       );
     }
     cleanupFutures.add(
-      GoogleSignIn().disconnect().catchError((_) => null),
+      _googleSignIn.disconnect().catchError((_) => null),
     );
     cleanupFutures.add(
-      GoogleSignIn().signOut().catchError((_) => null),
+      _googleSignIn.signOut().catchError((_) => null),
     );
     cleanupFutures.add(
       FirebaseAuth.instance.signOut().catchError((_) {}),
@@ -436,7 +476,8 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     }
 
     try {
-      await Future.wait(cleanupFutures).timeout(const Duration(seconds: 1), onTimeout: () => []);
+      await Future.wait(cleanupFutures)
+          .timeout(const Duration(seconds: 1), onTimeout: () => []);
     } catch (_) {}
 
     if (_ref != null) {
