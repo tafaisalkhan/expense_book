@@ -351,10 +351,15 @@ class MoreScreen extends ConsumerWidget {
                           : () async {
                               await ref.read(adNotifierProvider.notifier).purchaseRemoveAds();
                               if (context.mounted) {
+                                final isNowRemoved = ref.read(adNotifierProvider).isAdsRemoved;
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('🎉 Ads Removed permanently (`remove_ads`)! Unrestricted access unlocked.'),
-                                    backgroundColor: Colors.green,
+                                  SnackBar(
+                                    content: Text(
+                                      isNowRemoved
+                                          ? '🎉 Ads Removed permanently (`remove_ads`)! Unrestricted access unlocked.'
+                                          : 'ℹ️ Purchase request processed.',
+                                    ),
+                                    backgroundColor: isNowRemoved ? Colors.green : Colors.blue,
                                   ),
                                 );
                               }
@@ -366,6 +371,31 @@ class MoreScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  if (!isAdsRemoved) ...[
+                    const SizedBox(height: 6),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          await ref.read(adNotifierProvider.notifier).restorePurchases();
+                          if (context.mounted) {
+                            final isNowRemoved = ref.read(adNotifierProvider).isAdsRemoved;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  isNowRemoved
+                                      ? '🎉 Google Play purchase restored! Ads Removed permanently.'
+                                      : 'ℹ️ Google Play restore check completed.',
+                                ),
+                                backgroundColor: isNowRemoved ? Colors.green : Colors.blue,
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.restore, size: 16),
+                        label: const Text('Already Purchased? Restore Purchases', style: TextStyle(fontSize: 12)),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

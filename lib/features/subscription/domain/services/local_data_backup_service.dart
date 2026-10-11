@@ -13,7 +13,9 @@ import 'package:myexpence/features/calendar/presentation/providers/calendar_prov
 import 'package:myexpence/features/dashboard/presentation/providers/dashboard_providers.dart';
 import 'package:myexpence/features/expenses/presentation/providers/expense_providers.dart';
 import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
+import 'package:myexpence/features/auth/presentation/providers/auth_providers.dart';
 import 'package:myexpence/features/sms_parser/presentation/providers/sms_whitelist_provider.dart';
+import 'package:myexpence/features/subscription/domain/services/firebase_cloud_backup_service.dart';
 import 'package:myexpence/features/subscription/presentation/providers/subscription_providers.dart';
 
 class LocalBackupResult {
@@ -234,6 +236,17 @@ class LocalDataBackupService {
       } catch (e) {
         debugPrint('Local Restore Riverpod invalidation notice: $e');
       }
+
+      // Automatically sync freshly restored local data to Cloud backup if logged in
+      try {
+        final authState = ref.read(authProvider);
+        if (authState.isLoggedIn && authState.email != null && authState.email!.isNotEmpty) {
+          FirebaseCloudBackupService().backupDataToFirebase(ref).catchError((e) {
+            debugPrint('Post-restore cloud backup notice: $e');
+            return BackupResult(success: false, message: e.toString());
+          });
+        }
+      } catch (_) {}
 
       return LocalBackupResult(
         success: true,

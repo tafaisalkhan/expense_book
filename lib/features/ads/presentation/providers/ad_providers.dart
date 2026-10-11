@@ -97,6 +97,16 @@ class AdNotifier extends StateNotifier<AdState> {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool(_prefKeyAdsRemoved, true);
           state = state.copyWith(isAdsRemoved: true);
+          debugPrint('In-App Purchase verified & restored: remove_ads = true');
+        } else if (purchaseDetails.status == PurchaseStatus.error) {
+          final errStr = purchaseDetails.error?.message.toLowerCase() ?? '';
+          final errCode = purchaseDetails.error?.code.toLowerCase() ?? '';
+          if (errCode.contains('already') || errStr.contains('already') || errCode.contains('owned') || errStr.contains('owned')) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool(_prefKeyAdsRemoved, true);
+            state = state.copyWith(isAdsRemoved: true);
+            debugPrint('Item already owned: restored remove_ads = true');
+          }
         }
       }
     }
@@ -120,6 +130,8 @@ class AdNotifier extends StateNotifier<AdState> {
       }
     } catch (e) {
       debugPrint('Google Play In-App Purchase billing notice: $e');
+      // If purchase failed because item is already owned on Google Play account:
+      await restorePurchases();
     }
 
     // Direct fallback (e.g. debug mode / test emulator / offline)
@@ -137,7 +149,10 @@ class AdNotifier extends StateNotifier<AdState> {
   Future<void> restorePurchases() async {
     try {
       if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-        await InAppPurchase.instance.restorePurchases();
+        final bool isAvailable = await InAppPurchase.instance.isAvailable();
+        if (isAvailable) {
+          await InAppPurchase.instance.restorePurchases();
+        }
       }
     } catch (e) {
       debugPrint('Restore purchases notice: $e');

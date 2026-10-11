@@ -66,7 +66,7 @@ class AuthNotifier extends StateNotifier<AuthUser> {
 
   void _listenToAuthChanges() {
     try {
-      FirebaseAuth.instance.authStateChanges().listen((user) {
+      FirebaseAuth.instance.authStateChanges().listen((user) async {
         if (user != null) {
           final userEmail = user.email ?? '';
           final userName =
@@ -76,8 +76,33 @@ class AuthNotifier extends StateNotifier<AuthUser> {
                       ? userEmail.split('@').first
                       : 'Google User');
 
-          if (userEmail.isNotEmpty && state.email != userEmail) {
-            _saveAndSetState(user.uid, userEmail, userName);
+          if (userEmail.isEmpty) return;
+
+          // If the in-memory state is already logged in with this email, do nothing
+          if (state.isLoggedIn && state.email?.toLowerCase() == userEmail.toLowerCase()) {
+            return;
+          }
+
+          final prefs = await SharedPreferences.getInstance();
+          final savedEmail = prefs.getString(_keyUserEmail);
+          final isLoggedIn = prefs.getBool(_keyIsLoggedIn) ?? false;
+
+          // If this is the existing logged-in user on app launch, just update state without clearing data
+          if (savedEmail != null &&
+              savedEmail.toLowerCase() == userEmail.toLowerCase() &&
+              isLoggedIn) {
+            state = AuthUser(
+              uid: user.uid,
+              email: userEmail,
+              displayName: userName,
+              isLoggedIn: true,
+            );
+            await _registerAndListenActiveSession(userEmail);
+            return;
+          }
+
+          if (state.email?.toLowerCase() != userEmail.toLowerCase()) {
+            await _saveAndSetState(user.uid, userEmail, userName);
           }
         }
       });
@@ -132,13 +157,9 @@ class AuthNotifier extends StateNotifier<AuthUser> {
       await prefs.setString(_keySessionToken, _currentSessionToken!);
     }
 
-    User? firebaseUser;
-    try {
-      firebaseUser = FirebaseAuth.instance.currentUser;
-    } catch (_) {}
-    final String docKey = (firebaseUser != null && firebaseUser.uid.isNotEmpty)
-        ? firebaseUser.uid
-        : 'user_${email.toLowerCase().trim().replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_')}';
+    final sanitizedEmail =
+        email.toLowerCase().trim().replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
+    final String docKey = 'user_$sanitizedEmail';
 
     await _updateCloudSession(docKey, _currentSessionToken!, email);
     _startActiveSessionMonitoring(docKey);
@@ -323,23 +344,19 @@ class AuthNotifier extends StateNotifier<AuthUser> {
       isLoggedIn: true,
     );
 
+    await _registerAndListenActiveSession(email);
+
+    // Only auto-restore from cloud on a brand new empty database
     if (_ref != null) {
       try {
         final db = _ref.read(appDatabaseProvider);
-        await db.clearAllData();
-      } catch (_) {}
-
-      _invalidateAllDataProviders();
-    }
-
-    await _registerAndListenActiveSession(email);
-
-    // Auto-restore cloud backup for the newly logged in user if available
-    if (_ref != null) {
-      try {
-        final backupService = FirebaseCloudBackupService();
-        await backupService.restoreDataFromFirebase(_ref,
-            optionalEmail: email);
+        final currentExpenses =
+            await (await db.database).query('expenses', limit: 1);
+        if (currentExpenses.isEmpty) {
+          final backupService = FirebaseCloudBackupService();
+          await backupService.restoreDataFromFirebase(_ref,
+              optionalEmail: email);
+        }
       } catch (e) {
         debugPrint('Cloud restore notice on sign in: $e');
       }
@@ -364,11 +381,12 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     }
   }
 
-  Future<void> signOut({String? reason}) async {
+  Future<void> signOut({String? reason, bool clearLocalData = true}) async {
     _sessionPollTimer?.cancel();
     _sessionPollTimer = null;
 
     final email = state.email;
+    final uid = state.uid;
     if (email != null && email.isNotEmpty) {
       final sanitizedEmail =
           email.toLowerCase().trim().replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
@@ -377,6 +395,15 @@ class AuthNotifier extends StateNotifier<AuthUser> {
         FirebaseFirestore.instance
             .collection('active_sessions')
             .doc(docKey)
+            .delete()
+            .catchError((_) {});
+      } catch (_) {}
+    }
+    if (uid.isNotEmpty) {
+      try {
+        FirebaseFirestore.instance
+            .collection('active_sessions')
+            .doc(uid)
             .delete()
             .catchError((_) {});
       } catch (_) {}
@@ -399,7 +426,7 @@ class AuthNotifier extends StateNotifier<AuthUser> {
       await FirebaseAuth.instance.signOut();
     } catch (_) {}
 
-    if (_ref != null) {
+    if (clearLocalData && _ref != null) {
       try {
         final db = _ref.read(appDatabaseProvider);
         await db.clearAllData();

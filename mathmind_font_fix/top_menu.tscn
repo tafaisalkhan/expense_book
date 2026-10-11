@@ -1,0 +1,144 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/generated/ui-atlas.png" id="1_atlas"]
+[ext_resource type="FontFile" path="res://assets/fonts/LuckiestGuy-Regular.ttf" id="2_level_font"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_back"]
+atlas = ExtResource("1_atlas")
+region = Rect2(182, 619, 145, 145)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_coin_panel"]
+atlas = ExtResource("1_atlas")
+region = Rect2(32, 260, 312, 132)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_coin"]
+atlas = ExtResource("1_atlas")
+region = Rect2(26, 774, 150, 150)
+
+[node name="TopMenu" type="VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="HeaderMargin" type="MarginContainer" parent="."]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+
+[node name="HeaderHBox" type="Control" parent="HeaderMargin"]
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
+
+[node name="MenuButton" type="Button" parent="HeaderMargin/HeaderHBox"]
+custom_minimum_size = Vector2(58, 58)
+layout_mode = 1
+offset_left = 2.0
+offset_top = 5.0
+offset_right = 60.0
+offset_bottom = 63.0
+flat = true
+tooltip_text = "Back"
+z_index = 3
+
+[node name="Icon" type="TextureRect" parent="HeaderMargin/HeaderHBox/MenuButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = SubResource("AtlasTexture_back")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="PreviousLevelButton" type="Button" parent="HeaderMargin/HeaderHBox"]
+visible = false
+
+[node name="TitleVBox" type="Control" parent="HeaderMargin/HeaderHBox"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="LevelLabel" type="Label" parent="HeaderMargin/HeaderHBox/TitleVBox"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.24, 1)
+theme_override_colors/font_shadow_color = Color(0.02, 0.12, 0.075, 1)
+theme_override_constants/shadow_offset_x = 3
+theme_override_constants/shadow_offset_y = 3
+theme_override_fonts/font = ExtResource("2_level_font")
+theme_override_font_sizes/font_size = 40
+text = "LEVEL 1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ProgressDots" type="Label" parent="HeaderMargin/HeaderHBox/TitleVBox"]
+visible = false
+
+[node name="CoinPanel" type="NinePatchRect" parent="HeaderMargin/HeaderHBox"]
+custom_minimum_size = Vector2(150, 62)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -154.0
+offset_top = 3.0
+offset_right = -4.0
+offset_bottom = 65.0
+grow_horizontal = 0
+texture = SubResource("AtlasTexture_coin_panel")
+patch_margin_left = 24
+patch_margin_top = 18
+patch_margin_right = 24
+patch_margin_bottom = 18
+
+[node name="CoinHBox" type="HBoxContainer" parent="HeaderMargin/HeaderHBox/CoinPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 13.0
+offset_right = -13.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 3
+alignment = 1
+
+[node name="CoinIcon" type="TextureRect" parent="HeaderMargin/HeaderHBox/CoinPanel/CoinHBox"]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+texture = SubResource("AtlasTexture_coin")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CoinsLabel" type="Label" parent="HeaderMargin/HeaderHBox/CoinPanel/CoinHBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18, 0.14, 0.1, 1)
+theme_override_font_sizes/font_size = 24
+text = "306"
+vertical_alignment = 1
+
+[node name="BrowseNextLevelButton" type="Button" parent="HeaderMargin/HeaderHBox"]
+visible = false
+
+[node name="DifficultyMargin" type="MarginContainer" parent="."]
+visible = false
+layout_mode = 2
+
+[node name="DifficultyHBox" type="HBoxContainer" parent="DifficultyMargin"]
+layout_mode = 2
+
+[node name="DifficultyLabel" type="Label" parent="DifficultyMargin/DifficultyHBox"]
+layout_mode = 2
+text = "Easy"

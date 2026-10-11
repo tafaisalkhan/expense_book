@@ -33,12 +33,6 @@ android {
         versionName = flutter.versionName
     }
 
-    packaging {
-        jniLibs {
-            keepDebugSymbols.add("**/*.so")
-        }
-    }
-
     signingConfigs {
         create("release") {
             keyAlias = keystoreProperties.getProperty("keyAlias")
@@ -57,9 +51,6 @@ android {
             }
             isMinifyEnabled = false
             isShrinkResources = false
-            ndk {
-                debugSymbolLevel = "NONE"
-            }
         }
     }
 }
@@ -76,4 +67,10 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+}
+
+tasks.configureEach {
+    if (name.contains("strip", ignoreCase = true) && name.contains("DebugSymbols", ignoreCase = true)) {
+        enabled = false
+    }
 }

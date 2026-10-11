@@ -55,6 +55,16 @@ void main() {
       expect(notifier.state.email, null);
     });
 
+    test('Existing user login or restart does not wipe database', () async {
+      final notifier = AuthNotifier();
+      await notifier.signInWithGoogleEmail('testuser@gmail.com');
+      expect(notifier.state.isLoggedIn, true);
+
+      final result = await notifier.signInWithGoogleEmail('testuser@gmail.com');
+      expect(result, true);
+      expect(notifier.state.email, 'testuser@gmail.com');
+    });
+
     test('Firebase Service Account configuration is valid', () {
       final map = FirebaseConfig.toMap();
       expect(map['project_id'], 'myexpenses-d3cb0');

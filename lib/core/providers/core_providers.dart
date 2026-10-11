@@ -14,11 +14,7 @@ import 'package:myexpence/features/receipts/data/repositories/receipt_repository
 import 'package:myexpence/features/receipts/domain/repositories/receipt_repository.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
-  final db = AppDatabase();
-  ref.onDispose(() {
-    db.close();
-  });
-  return db;
+  return AppDatabase();
 });
 
 final personRepositoryProvider = Provider<IPersonRepository>((ref) {

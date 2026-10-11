@@ -199,7 +199,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
           ),
         );
         if (mounted) {
-          await ref.read(authProvider.notifier).signOut(reason: reason);
+          await ref.read(authProvider.notifier).signOut(reason: reason, clearLocalData: false);
           if (context.mounted) {
             context.go('/login');
           }

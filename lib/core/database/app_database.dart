@@ -7,6 +7,10 @@ class AppDatabase {
   static const String _dbName = 'myexpense.db';
   static const int _dbVersion = 4;
 
+  static final AppDatabase _instance = AppDatabase._internal();
+  factory AppDatabase() => _instance;
+  AppDatabase._internal();
+
   Database? _db;
 
   Future<Database> get database async {
