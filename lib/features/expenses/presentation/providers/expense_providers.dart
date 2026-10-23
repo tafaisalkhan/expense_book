@@ -9,6 +9,11 @@ final recentExpensesProvider = FutureProvider<List<Expense>>((ref) async {
   return await repo.getRecentExpenses(limit: 20);
 });
 
+final allExpensesProvider = FutureProvider<List<Expense>>((ref) async {
+  final repo = ref.watch(expenseRepositoryProvider);
+  return await repo.getAllExpenses();
+});
+
 final pendingRecurringExpensesProvider =
     FutureProvider<List<Expense>>((ref) async {
   await ref.watch(recurringExpenseServiceProvider).generateDueExpenses();
@@ -26,6 +31,7 @@ class ExpenseNotifier extends StateNotifier<AsyncValue<void>> {
       final repo = ref.read(expenseRepositoryProvider);
       await repo.addExpense(expense);
       ref.invalidate(recentExpensesProvider);
+      ref.invalidate(allExpensesProvider);
       ref.invalidate(dashboardDataProvider);
       ref.invalidate(calendarMonthDataProvider);
       state = const AsyncValue.data(null);
@@ -40,6 +46,7 @@ class ExpenseNotifier extends StateNotifier<AsyncValue<void>> {
       final repo = ref.read(expenseRepositoryProvider);
       await repo.updateExpense(expense);
       ref.invalidate(recentExpensesProvider);
+      ref.invalidate(allExpensesProvider);
       ref.invalidate(dashboardDataProvider);
       ref.invalidate(calendarMonthDataProvider);
       state = const AsyncValue.data(null);
@@ -54,6 +61,7 @@ class ExpenseNotifier extends StateNotifier<AsyncValue<void>> {
       final repo = ref.read(expenseRepositoryProvider);
       await repo.deleteExpense(uuid);
       ref.invalidate(recentExpensesProvider);
+      ref.invalidate(allExpensesProvider);
       ref.invalidate(dashboardDataProvider);
       ref.invalidate(calendarMonthDataProvider);
       state = const AsyncValue.data(null);
@@ -75,6 +83,7 @@ class ExpenseNotifier extends StateNotifier<AsyncValue<void>> {
   void _refreshExpenses() {
     ref.invalidate(pendingRecurringExpensesProvider);
     ref.invalidate(recentExpensesProvider);
+    ref.invalidate(allExpensesProvider);
     ref.invalidate(dashboardDataProvider);
     ref.invalidate(calendarMonthDataProvider);
   }

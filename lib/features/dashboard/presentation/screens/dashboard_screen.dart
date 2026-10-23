@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:myexpence/core/providers/core_providers.dart';
-import 'package:myexpence/core/theme/app_theme.dart';
 import 'package:myexpence/core/utils/category_icon_helper.dart';
+import 'package:myexpence/core/theme/app_theme.dart';
+import 'package:myexpence/features/ads/presentation/providers/ad_providers.dart';
 import 'package:myexpence/core/utils/currency_formatters.dart';
 import 'package:myexpence/core/utils/date_formatters.dart';
+import 'package:myexpence/features/expenses/presentation/widgets/voice_note_player_bottom_sheet.dart';
 import 'package:myexpence/features/auth/domain/models/auth_user.dart';
 import 'package:myexpence/features/auth/presentation/providers/auth_providers.dart';
 import 'package:myexpence/features/categories/domain/models/category.dart';
@@ -19,6 +21,7 @@ import 'package:myexpence/features/expenses/domain/models/expense_classification
 import 'package:myexpence/features/expenses/presentation/providers/expense_providers.dart';
 import 'package:myexpence/features/people/domain/models/person.dart';
 import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
+import 'package:myexpence/features/settings/presentation/providers/settings_providers.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -29,15 +32,36 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _touchedPieIndex = -1;
+  bool _showSubcategoriesInChart = false;
+  int _currentPage = 0;
+  static const int _pageSize = 5;
+
+  /// Drill-down bucket selected inside the current timeframe:
+  /// a specific day (Week), week (Month), or month (Year). Null = all.
+  DateTime? _selectedBucket;
+  DateTime? _selectedBucketEnd;
+  String? _selectedBucketLabel;
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(currencyNotifierProvider);
     final dashboardAsync = ref.watch(dashboardDataProvider);
-    final recentExpensesAsync = ref.watch(recentExpensesProvider);
     final peopleAsync = ref.watch(peopleListProvider);
     final categoriesList = ref.watch(categoriesListProvider).valueOrNull ?? [];
     final categoryMap = {for (var c in categoriesList) c.id: c};
     final timeframe = ref.watch(dashboardTimeframeProvider);
+
+    // Reset pagination to first page whenever timeframe filter changes
+    ref.listen<DashboardTimeframe>(dashboardTimeframeProvider, (previous, next) {
+      if (previous != next) {
+        setState(() {
+          _currentPage = 0;
+          _selectedBucket = null;
+          _selectedBucketEnd = null;
+          _selectedBucketLabel = null;
+        });
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -61,6 +85,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             onPressed: () {
               ref.invalidate(dashboardDataProvider);
               ref.invalidate(recentExpensesProvider);
+              ref.invalidate(allExpensesProvider);
             },
             tooltip: 'Refresh Data',
           ),
@@ -70,6 +95,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         onRefresh: () async {
           ref.invalidate(dashboardDataProvider);
           ref.invalidate(recentExpensesProvider);
+          ref.invalidate(allExpensesProvider);
         },
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -129,84 +155,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     const SizedBox(height: 24),
                   ],
 
-                  // 8. Recent Expenses Header & List
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Recent Transactions',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => context.go('/expenses'),
-                        child: const Text('View All'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  recentExpensesAsync.when(
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (err, stack) => Text('Error loading recent expenses: $err'),
-                    data: (expenses) {
-                      if (expenses.isEmpty) {
-                        return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Center(
-                              child: Text(
-                                'No transactions recorded yet.',
-                                style: TextStyle(color: Colors.grey.shade600),
-                              ),
-                            ),
-                          ),
-                        );
-                      }
-                      return ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: expenses.length > 5 ? 5 : expenses.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final expense = expenses[index];
-                          final category = categoryMap[expense.categoryId];
-                          final catName = category?.name ?? 'General';
-                          final iconData = CategoryIconHelper.getIconData(category?.icon);
-                          final title = expense.merchant ?? expense.description ?? 'Expense';
-
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                              child: Icon(
-                                iconData,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                            title: Text(
-                              title,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            subtitle: Text(
-                              '${DateFormatters.formatDateDisplay(DateFormatters.parseDateIso(expense.expenseDate))} • $catName',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            trailing: Text(
-                              CurrencyFormatters.format(expense.amount),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                                color: Colors.redAccent,
-                              ),
-                            ),
-                            onTap: () => context.push('/expenses/${expense.uuid}'),
-                          );
-                        },
-                      );
-                    },
-                  ),
+                  // 8. Timeframe-filtered Expenses Section (All for Day, Paginated for Week/Month/Year)
+                  _buildExpensesSection(context, data, timeframe, categoryMap),
                   const SizedBox(height: 32),
                 ],
               );
@@ -568,22 +518,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // --- 4. Chart 2: Category Breakdown Donut Chart ---
+  // --- 4. Chart 2: Category & Subcategory Breakdown Donut Chart ---
   Widget _buildCategoryBreakdownCard(
       BuildContext context, DashboardData data, Map<String, Category> categoryMap) {
-    if (data.categoryBreakdown.isEmpty) {
-      return Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: const Padding(
-          padding: EdgeInsets.all(24.0),
-          child: Center(child: Text('No category spending data for this period.')),
-        ),
-      );
+    final List<MapEntry<String, double>> entries;
+    if (_showSubcategoriesInChart) {
+      final subNameMap = <String, String>{};
+      for (final cat in categoryMap.values) {
+        for (final sub in cat.subcategories) {
+          subNameMap[sub.id] = sub.name;
+          if (sub.uuid != null) subNameMap[sub.uuid!] = sub.name;
+        }
+      }
+
+      final subcategoryTotals = <String, double>{};
+      for (final exp in data.periodExpenses) {
+        if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) continue;
+        final subId = exp.subcategoryId;
+        String displayName;
+        if (subId != null && subNameMap.containsKey(subId)) {
+          displayName = subNameMap[subId]!;
+        } else if (subId != null && subId.trim().isNotEmpty) {
+          displayName = subId;
+        } else {
+          final catName = categoryMap[exp.categoryId]?.name ?? exp.categoryId;
+          displayName = '$catName (General)';
+        }
+        subcategoryTotals[displayName] =
+            (subcategoryTotals[displayName] ?? 0.0) + exp.amount;
+      }
+      entries = subcategoryTotals.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+    } else {
+      entries = data.categoryBreakdown.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
     }
 
     final total = data.periodTotal > 0 ? data.periodTotal : 1.0;
-    final entries = data.categoryBreakdown.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
 
     final colors = [
       const Color(0xFF6C5CE7),
@@ -593,7 +564,74 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       const Color(0xFFFDCB6E),
       const Color(0xFFE17055),
       const Color(0xFFA29BFE),
+      const Color(0xFFE84393),
+      const Color(0xFF0984E3),
+      const Color(0xFF2D3436),
     ];
+
+    Widget buildHeader() {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              _showSubcategoriesInChart
+                  ? 'Subcategory Breakdown'
+                  : 'Category Breakdown',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(
+                value: false,
+                label: Text('Category', style: TextStyle(fontSize: 11)),
+              ),
+              ButtonSegment(
+                value: true,
+                label: Text('Subcategory', style: TextStyle(fontSize: 11)),
+              ),
+            ],
+            selected: {_showSubcategoriesInChart},
+            onSelectionChanged: (val) {
+              setState(() {
+                _showSubcategoriesInChart = val.first;
+                _touchedPieIndex = -1;
+              });
+            },
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (entries.isEmpty) {
+      return Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buildHeader(),
+              const SizedBox(height: 20),
+              Center(
+                child: Text(
+                  _showSubcategoriesInChart
+                      ? 'No subcategory spending data for this period.'
+                      : 'No category spending data for this period.',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     final sections = List.generate(entries.length, (i) {
       final isTouched = i == _touchedPieIndex;
@@ -622,10 +660,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Category Breakdown',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+            buildHeader(),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -636,7 +671,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     child: PieChart(
                       PieChartData(
                         pieTouchData: PieTouchData(
-                          touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                          touchCallback:
+                              (FlTouchEvent event, pieTouchResponse) {
                             setState(() {
                               if (!event.isInterestedForInteractions ||
                                   pieTouchResponse == null ||
@@ -644,8 +680,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 _touchedPieIndex = -1;
                                 return;
                               }
-                              _touchedPieIndex =
-                                  pieTouchResponse.touchedSection!.touchedSectionIndex;
+                              _touchedPieIndex = pieTouchResponse
+                                  .touchedSection!.touchedSectionIndex;
                             });
                           },
                         ),
@@ -664,9 +700,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     children: List.generate(
                       entries.length > 5 ? 5 : entries.length,
                       (i) {
-                        final catId = entries[i].key;
-                        final category = categoryMap[catId];
-                        final catName = category?.name ?? catId;
+                        final displayName = _showSubcategoriesInChart
+                            ? entries[i].key
+                            : (categoryMap[entries[i].key]?.name ??
+                                entries[i].key);
                         final amt = entries[i].value;
                         final color = colors[i % colors.length];
 
@@ -685,9 +722,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  catName,
+                                  displayName,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500),
                                 ),
                               ),
                               Text(
@@ -1112,6 +1151,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               );
 
                               return ListTile(
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                                  context.push('/add', extra: exp);
+                                },
                                 leading: CircleAvatar(
                                   backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
                                   child: Icon(iconData, size: 20),
@@ -1141,6 +1185,538 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           },
         );
       },
+    );
+  }
+
+  // --- 8. Timeframe Expenses Section (All Day vs Paginated Week/Month/Year) ---
+  Widget _buildExpensesSection(
+    BuildContext context,
+    DashboardData data,
+    DashboardTimeframe timeframe,
+    Map<String, Category> categoryMap,
+  ) {
+    final isDay = timeframe == DashboardTimeframe.day;
+    final isYear = timeframe == DashboardTimeframe.year;
+    final isMonth = timeframe == DashboardTimeframe.month;
+
+    // Apply drill-down filter (selected day for Week, week for Month, month for Year)
+    final bucket = _selectedBucket;
+    final bucketEnd = _selectedBucketEnd;
+    final expenses = (isDay || bucket == null)
+        ? data.periodExpenses
+        : data.periodExpenses
+            .where((e) => _isInBucket(e.expenseDate, bucket, bucketEnd, isYear, isMonth))
+            .toList();
+    final totalExpenses = expenses.length;
+    final totalPages = (totalExpenses / _pageSize).ceil();
+
+    // Ensure _currentPage is in valid bounds
+    if (_currentPage >= totalPages && totalPages > 0) {
+      _currentPage = totalPages - 1;
+    }
+
+    final displayedExpenses = isDay
+        ? expenses
+        : _getPaginatedExpenses(expenses);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Text(
+                  bucket != null && !isDay
+                      ? (isYear
+                          ? "${DateFormat('MMMM').format(bucket)}'s Expenses"
+                          : (isMonth
+                              ? "${_selectedBucketLabel ?? 'Week'}'s Expenses"
+                              : DateFormat('EEE, MMM d').format(bucket)))
+                      : _getExpensesSectionTitle(timeframe),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$totalExpenses',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            TextButton(
+              onPressed: () => context.go('/expenses'),
+              child: const Text('View All'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // Drill-down selector: Week -> 7 days, Month -> every day, Year -> 12 months
+        if (!isDay) ...[
+          _buildBucketSelector(context, data, isYear),
+          const SizedBox(height: 10),
+        ],
+
+        if (expenses.isEmpty)
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      isDay && data.isZeroSpendConfirmedToday
+                          ? Icons.celebration_outlined
+                          : Icons.receipt_long_outlined,
+                      size: 40,
+                      color: isDay && data.isZeroSpendConfirmedToday
+                          ? Colors.green
+                          : Colors.grey.shade400,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      isDay
+                          ? (data.isZeroSpendConfirmedToday
+                              ? 'Zero-Spend Day Confirmed 🎉\nNo money spent today!'
+                              : 'No transactions recorded for today.')
+                          : (bucket != null
+                              ? 'No transactions recorded for this ${isYear ? 'month' : (isMonth ? 'week' : 'day')}.'
+                              : 'No transactions recorded for this period.'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        else ...[
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: Theme.of(context)
+                    .colorScheme
+                    .outlineVariant
+                    .withValues(alpha: 0.4),
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: displayedExpenses.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final expense = displayedExpenses[index];
+                final category = categoryMap[expense.categoryId];
+                final catName = category?.name ?? 'General';
+                final iconName = category?.icon;
+                final title = expense.merchant?.isNotEmpty == true
+                    ? expense.merchant!
+                    : (expense.description?.isNotEmpty == true
+                        ? expense.description!
+                        : 'Expense');
+
+                return ListTile(
+                  leading: CategoryIconHelper.buildCategoryAvatar(
+                    iconName: iconName,
+                    categoryId: expense.categoryId,
+                  ),
+                  title: Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${DateFormatters.formatDateDisplay(DateFormatters.parseDateIso(expense.expenseDate))} • $catName',
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (expense.hasVoiceNote) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.mic, size: 14, color: AppTheme.primaryColor),
+                      ],
+                    ],
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (expense.hasVoiceNote)
+                        IconButton(
+                          icon: const Icon(Icons.volume_up_outlined,
+                              size: 20, color: AppTheme.primaryColor),
+                          tooltip: 'Listen to Voice Note',
+                          onPressed: () =>
+                              showVoiceNoteBottomSheet(context, ref, expense),
+                        ),
+                      Text(
+                        CurrencyFormatters.format(expense.amount),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                    context.push('/add', extra: expense);
+                  },
+                );
+              },
+            ),
+          ),
+
+          // For week/month/year: Show pagination controls
+          if (!isDay && totalExpenses > 0)
+            _buildPaginationControls(context, totalExpenses, totalPages),
+        ],
+      ],
+    );
+  }
+
+  bool _isInBucket(String expenseDateIso, DateTime bucket, DateTime? bucketEnd, bool isYear, bool isMonth) {
+    final d = DateTime.tryParse(expenseDateIso);
+    if (d == null) return false;
+    if (isYear) return d.year == bucket.year && d.month == bucket.month;
+    if (isMonth && bucketEnd != null) {
+      return d.year == bucket.year &&
+          d.month == bucket.month &&
+          d.day >= bucket.day &&
+          d.day <= bucketEnd.day;
+    }
+    return d.year == bucket.year && d.month == bucket.month && d.day == bucket.day;
+  }
+
+  bool _isBucketSelected(DateTime date, bool isYear) {
+    final b = _selectedBucket;
+    if (b == null) return false;
+    if (isYear) return b.year == date.year && b.month == date.month;
+    return b.year == date.year && b.month == date.month && b.day == date.day;
+  }
+
+  /// Horizontal, tappable strip of days (Week), weeks (Month), or months (Year) with totals.
+  /// Tap a chip to see only that period's expenses; tap again (or "All") to clear.
+  Widget _buildBucketSelector(BuildContext context, DashboardData data, bool isYear) {
+    final scheme = Theme.of(context).colorScheme;
+    final now = DateTime.now();
+    final isMonth = data.selectedTimeframe == DashboardTimeframe.month;
+
+    Widget chip({
+      required String top,
+      required String bottom,
+      required String amount,
+      required bool selected,
+      required bool highlight,
+      required VoidCallback onTap,
+    }) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: isMonth ? 74 : 64,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(
+              color: selected
+                  ? scheme.primary
+                  : scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: highlight && !selected
+                    ? scheme.primary
+                    : scheme.outlineVariant.withValues(alpha: 0.4),
+                width: highlight && !selected ? 1.5 : 1,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  top,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: selected
+                        ? Colors.white70
+                        : scheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  bottom,
+                  style: TextStyle(
+                    fontSize: isMonth ? 13 : 16,
+                    fontWeight: FontWeight.bold,
+                    color: selected ? Colors.white : scheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    amount,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? Colors.white : Colors.redAccent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final chips = <Widget>[
+      chip(
+        top: 'All',
+        bottom: isYear ? 'Year' : (data.selectedTimeframe == DashboardTimeframe.week ? 'Week' : 'Month'),
+        amount: CurrencyFormatters.format(data.periodTotal),
+        selected: _selectedBucket == null,
+        highlight: false,
+        onTap: () => setState(() {
+          _selectedBucket = null;
+          _selectedBucketEnd = null;
+          _selectedBucketLabel = null;
+          _currentPage = 0;
+        }),
+      ),
+      for (final p in data.trendPoints)
+        chip(
+          top: isYear
+              ? '${p.date.year}'
+              : (isMonth
+                  ? '${p.date.day}-${p.endDate?.day ?? p.date.day}'
+                  : DateFormat('EEE').format(p.date)),
+          bottom: isYear
+              ? DateFormat('MMM').format(p.date)
+              : (isMonth ? p.label : '${p.date.day}'),
+          amount: p.amount > 0 ? CurrencyFormatters.format(p.amount) : '-',
+          selected: _isBucketSelected(p.date, isYear),
+          highlight: isYear
+              ? p.date.year == now.year && p.date.month == now.month
+              : (isMonth
+                  ? p.date.year == now.year &&
+                      p.date.month == now.month &&
+                      now.day >= p.date.day &&
+                      now.day <= (p.endDate?.day ?? p.date.day)
+                  : p.date.year == now.year &&
+                      p.date.month == now.month &&
+                      p.date.day == now.day),
+          onTap: () => setState(() {
+            final isSel = _isBucketSelected(p.date, isYear);
+            _selectedBucket = isSel ? null : p.date;
+            _selectedBucketEnd = isSel ? null : p.endDate;
+            _selectedBucketLabel = isSel ? null : p.label;
+            _currentPage = 0;
+          }),
+        ),
+    ];
+
+    return SizedBox(
+      height: 78,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: chips,
+      ),
+    );
+  }
+
+  String _getExpensesSectionTitle(DashboardTimeframe tf) {
+    switch (tf) {
+      case DashboardTimeframe.day:
+        return "Today's Expenses";
+      case DashboardTimeframe.week:
+        return "This Week's Expenses";
+      case DashboardTimeframe.month:
+        return "This Month's Expenses";
+      case DashboardTimeframe.year:
+        return "This Year's Expenses";
+    }
+  }
+
+  List<Expense> _getPaginatedExpenses(List<Expense> expenses) {
+    final totalExpenses = expenses.length;
+    if (totalExpenses == 0) return [];
+    final startIndex = _currentPage * _pageSize;
+    final endIndex = (startIndex + _pageSize > totalExpenses)
+        ? totalExpenses
+        : startIndex + _pageSize;
+    return expenses.sublist(startIndex, endIndex);
+  }
+
+  Widget _buildPaginationControls(
+    BuildContext context,
+    int totalCount,
+    int totalPages,
+  ) {
+    if (totalPages <= 1) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: Center(
+          child: Text(
+            'Showing all $totalCount transactions',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final startIndex = _currentPage * _pageSize + 1;
+    final endIndex = (_currentPage * _pageSize + _pageSize > totalCount)
+        ? totalCount
+        : (_currentPage * _pageSize + _pageSize);
+
+    final isFirstPage = _currentPage == 0;
+    final isLastPage = _currentPage >= totalPages - 1;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Theme.of(context)
+              .colorScheme
+              .outlineVariant
+              .withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Showing $startIndex–$endIndex of $totalCount',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.7),
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                iconSize: 20,
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                tooltip: 'Previous page',
+                onPressed: isFirstPage
+                    ? null
+                    : () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                      },
+              ),
+              if (totalPages <= 5)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(totalPages, (index) {
+                    final isCurrent = index == _currentPage;
+                    return InkWell(
+                      onTap: () => setState(() => _currentPage = index),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isCurrent
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isCurrent
+                                ? Colors.white
+                                : Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                )
+              else
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${_currentPage + 1} / $totalPages',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                iconSize: 20,
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                tooltip: 'Next page',
+                onPressed: isLastPage
+                    ? null
+                    : () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                      },
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

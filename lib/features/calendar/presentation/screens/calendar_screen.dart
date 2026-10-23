@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
 import 'package:myexpence/core/utils/currency_formatters.dart';
 import 'package:myexpence/core/utils/date_formatters.dart';
+import 'package:myexpence/features/ads/presentation/providers/ad_providers.dart';
 import 'package:myexpence/features/calendar/presentation/providers/calendar_providers.dart';
 import 'package:myexpence/features/expenses/presentation/providers/expense_providers.dart';
 
@@ -140,8 +141,10 @@ class CalendarScreen extends ConsumerWidget {
       onTap: () {
         if (day.status == DayStatus.missing) {
           _showMissingDayOptions(context, ref, day);
-        } else if (day.status == DayStatus.recorded) {
-          context.go('/expenses');
+        } else if (day.status == DayStatus.recorded ||
+            day.status == DayStatus.zeroSpend) {
+          ref.read(adNotifierProvider.notifier).recordNavigation(context);
+          context.push('/expenses?date=${day.dateIso}', extra: day.dateIso);
         }
       },
       borderRadius: BorderRadius.circular(8),
@@ -215,6 +218,7 @@ class CalendarScreen extends ConsumerWidget {
                     style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor, foregroundColor: Colors.white),
                     onPressed: () {
                       Navigator.pop(ctx);
+                      ref.read(adNotifierProvider.notifier).recordNavigation(context);
                       context.push('/add');
                     },
                     child: const Text('Add Expense'),

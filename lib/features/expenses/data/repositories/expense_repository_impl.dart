@@ -253,6 +253,61 @@ class SqliteExpenseRepository implements IExpenseRepository {
   }
 
   @override
+  Future<List<Expense>> getAllExpenses() async {
+    final db = await appDatabase.database;
+    final maps = await db.query(
+      'expenses',
+      where: 'isDeleted = 0',
+      orderBy: 'expenseDate DESC, createdAt DESC',
+    );
+    return maps.map((map) => Expense.fromMap(map)).toList();
+  }
+
+  @override
+  Future<Map<String, double>> getSpendingBySubcategory({
+    required String startDate,
+    required String endDate,
+    String? personId,
+  }) async {
+    final db = await appDatabase.database;
+
+    String where =
+        "expenseDate >= ? AND expenseDate <= ? AND isDeleted = 0 AND status IN ('PAID', 'APPROVED')";
+    List<dynamic> args = [startDate, endDate];
+
+    if (personId != null) {
+      if (personId == 'household') {
+        where += ' AND personId IS NULL';
+      } else {
+        where += ' AND personId = ?';
+        args.add(personId);
+      }
+    }
+
+    final result = await db.rawQuery('''
+      SELECT 
+        CASE 
+          WHEN subcategoryId IS NOT NULL AND subcategoryId != '' THEN subcategoryId 
+          ELSE 'uncategorized' 
+        END as subId, 
+        SUM(amount) as total
+      FROM expenses
+      WHERE $where
+      GROUP BY subId
+      ORDER BY total DESC
+    ''', args);
+
+    final Map<String, double> map = {};
+    for (final row in result) {
+      final subId = row['subId'] as String;
+      final total = (row['total'] as num).toDouble();
+      map[subId] = total;
+    }
+
+    return map;
+  }
+
+  @override
   Future<List<Expense>> getPendingExpenses() async {
     final db = await appDatabase.database;
     final maps = await db.query(

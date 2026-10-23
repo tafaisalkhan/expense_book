@@ -5,7 +5,7 @@ import 'package:myexpence/features/expenses/domain/models/expense_classification
 class OcrLineItem {
   final String name;
   final double amount;
-  final int quantity;
+  final double quantity;
   final String? categoryId;
   final String? subcategoryId;
   final ExpenseClassification classification;
@@ -14,7 +14,7 @@ class OcrLineItem {
   const OcrLineItem({
     required this.name,
     required this.amount,
-    this.quantity = 1,
+    this.quantity = 1.0,
     this.categoryId,
     this.subcategoryId,
     this.classification = ExpenseClassification.required,
@@ -24,7 +24,7 @@ class OcrLineItem {
   OcrLineItem copyWith({
     String? name,
     double? amount,
-    int? quantity,
+    double? quantity,
     String? categoryId,
     String? subcategoryId,
     ExpenseClassification? classification,
@@ -54,7 +54,7 @@ class OcrLineItem {
   factory OcrLineItem.fromJson(Map<String, dynamic> json) => OcrLineItem(
         name: json['name'] as String,
         amount: (json['amount'] as num).toDouble(),
-        quantity: json['quantity'] as int? ?? 1,
+        quantity: (json['quantity'] as num?)?.toDouble() ?? 1.0,
         categoryId: json['categoryId'] as String?,
         subcategoryId: json['subcategoryId'] as String?,
         classification: ExpenseClassification.values.firstWhere(
@@ -437,17 +437,17 @@ class OcrScannerService {
           lineItems.add(OcrLineItem(
             name: itemName,
             amount: amt,
-            quantity: qtyStr != null ? (int.tryParse(qtyStr) ?? 1) : 1,
+            quantity: qtyStr != null ? (double.tryParse(qtyStr) ?? 1.0) : 1.0,
           ));
         }
       }
     }
 
     if (lineItems.isEmpty && totalAmount > 0) {
-      lineItems.add(OcrLineItem(name: merchant, amount: totalAmount, quantity: 1));
+      lineItems.add(OcrLineItem(name: merchant, amount: totalAmount, quantity: 1.0));
     } else if (lineItems.isEmpty && totalAmount == 0.0) {
       totalAmount = 1450.0;
-      lineItems.add(OcrLineItem(name: merchant, amount: totalAmount, quantity: 1));
+      lineItems.add(OcrLineItem(name: merchant, amount: totalAmount, quantity: 1.0));
     }
 
     return OcrResult(

@@ -10,6 +10,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:myexpence/core/database/app_database.dart';
 import 'package:myexpence/features/budgets/presentation/providers/budget_providers.dart';
 import 'package:myexpence/features/calendar/presentation/providers/calendar_providers.dart';
+import 'package:myexpence/features/categories/presentation/providers/category_providers.dart';
 import 'package:myexpence/features/dashboard/presentation/providers/dashboard_providers.dart';
 import 'package:myexpence/features/expenses/presentation/providers/expense_providers.dart';
 import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
@@ -43,8 +44,12 @@ class LocalDataBackupService {
       final db = await _appDatabase.database;
 
       final expenses = await db.query('expenses', where: 'isDeleted = 0');
+      final categories = await db.query('categories');
+      final subcategories = await db.query('subcategories');
       final people = await db.query('people');
       final budgets = await db.query('budgets');
+      final recurringExpenses = await db.query('recurring_expenses');
+      final receipts = await db.query('receipts');
       final zeroSpends = await db.query('zero_spend_confirmations');
 
       final prefs = await SharedPreferences.getInstance();
@@ -59,14 +64,18 @@ class LocalDataBackupService {
       final timestampStr = DateTime.now().millisecondsSinceEpoch;
 
       final backupPayload = {
-        'version': 1,
+        'version': 2,
         'appVersion': '1.3.0',
         'exportedAt': nowIso,
         'sub_tier': subTier,
         'sub_expiry_iso': subExpiry,
         'expenses': expenses,
+        'categories': categories,
+        'subcategories': subcategories,
         'people': people,
         'budgets': budgets,
+        'recurring_expenses': recurringExpenses,
+        'receipts': receipts,
         'zero_spend_confirmations': zeroSpends,
         'whitelisted_senders': whitelistedSenders,
         'geofences_json': geofences,
@@ -90,7 +99,7 @@ class LocalDataBackupService {
 
       return LocalBackupResult(
         success: true,
-        message: '✅ Downloaded ${expenses.length} expense(s) to Downloads folder!\nSaved as: ${targetFile.path}',
+        message: '✅ Complete backup created successfully!\n• ${expenses.length} expense(s)\n• ${categories.length} category(ies)\n• ${subcategories.length} subcategory(ies)\n• ${people.length} person(s)\n• ${budgets.length} budget(s)\n• ${recurringExpenses.length} recurring schedule(s)\n\nSaved to Downloads:\n${targetFile.path}',
         backupDateIso: nowIso,
         recordCount: expenses.length,
         filePath: targetFile.path,
@@ -153,13 +162,41 @@ class LocalDataBackupService {
       final Map<String, dynamic> backupPayload = jsonDecode(jsonContent);
 
       final List expenses = backupPayload['expenses'] as List? ?? [];
+      final List categories = backupPayload['categories'] as List? ?? [];
+      final List subcategories = backupPayload['subcategories'] as List? ?? [];
       final List people = backupPayload['people'] as List? ?? [];
       final List budgets = backupPayload['budgets'] as List? ?? [];
+      final List recurringExpenses = backupPayload['recurring_expenses'] as List? ?? [];
+      final List receipts = backupPayload['receipts'] as List? ?? [];
       final List zeroSpends = backupPayload['zero_spend_confirmations'] as List? ?? [];
 
       final db = await _appDatabase.database;
 
       await db.transaction((txn) async {
+        // 1. Restore categories & subcategories (custom user categories & edits)
+        for (final item in categories) {
+          final map = Map<String, dynamic>.from(item as Map);
+          await txn.insert('categories', map, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        for (final item in subcategories) {
+          final map = Map<String, dynamic>.from(item as Map);
+          await txn.insert('subcategories', map, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+
+        // 2. Restore people
+        if (people.isNotEmpty) {
+          await txn.delete('people');
+        }
+        for (final item in people) {
+          final map = Map<String, dynamic>.from(item as Map);
+          map.remove('id');
+          if (map['isActive'] != null) {
+            map['isActive'] = (map['isActive'] == true || map['isActive'] == 1 || map['isActive'] == '1') ? 1 : 0;
+          }
+          await txn.insert('people', map, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+
+        // 3. Restore expenses
         if (expenses.isNotEmpty) {
           await txn.delete('expenses');
         }
@@ -176,18 +213,7 @@ class LocalDataBackupService {
           await txn.insert('expenses', map, conflictAlgorithm: ConflictAlgorithm.replace);
         }
 
-        if (people.isNotEmpty) {
-          await txn.delete('people');
-        }
-        for (final item in people) {
-          final map = Map<String, dynamic>.from(item as Map);
-          map.remove('id');
-          if (map['isActive'] != null) {
-            map['isActive'] = (map['isActive'] == true || map['isActive'] == 1 || map['isActive'] == '1') ? 1 : 0;
-          }
-          await txn.insert('people', map, conflictAlgorithm: ConflictAlgorithm.replace);
-        }
-
+        // 4. Restore budgets
         if (budgets.isNotEmpty) {
           await txn.delete('budgets');
         }
@@ -197,9 +223,29 @@ class LocalDataBackupService {
           await txn.insert('budgets', map, conflictAlgorithm: ConflictAlgorithm.replace);
         }
 
+        // 5. Restore recurring expenses
+        if (recurringExpenses.isNotEmpty) {
+          await txn.delete('recurring_expenses');
+        }
+        for (final item in recurringExpenses) {
+          final map = Map<String, dynamic>.from(item as Map);
+          await txn.insert('recurring_expenses', map, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+
+        // 6. Restore zero spend confirmations
         for (final item in zeroSpends) {
           final map = Map<String, dynamic>.from(item as Map);
           await txn.insert('zero_spend_confirmations', map, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+
+        // 7. Restore receipts metadata
+        if (receipts.isNotEmpty) {
+          await txn.delete('receipts');
+        }
+        for (final item in receipts) {
+          final map = Map<String, dynamic>.from(item as Map);
+          map.remove('id');
+          await txn.insert('receipts', map, conflictAlgorithm: ConflictAlgorithm.replace);
         }
       });
 
@@ -224,7 +270,11 @@ class LocalDataBackupService {
       // Refresh Riverpod UI state across feature screens
       try {
         await ref.read(subscriptionProvider.notifier).reloadSubscription();
+        ref.invalidate(categoriesListProvider);
+        ref.invalidate(categoryNotifierProvider);
+        ref.invalidate(pendingRecurringExpensesProvider);
         ref.invalidate(recentExpensesProvider);
+        ref.invalidate(allExpensesProvider);
         ref.invalidate(dashboardDataProvider);
         ref.invalidate(calendarMonthDataProvider);
         ref.invalidate(peopleListProvider);
@@ -250,7 +300,7 @@ class LocalDataBackupService {
 
       return LocalBackupResult(
         success: true,
-        message: '🎉 Successfully restored ${expenses.length} expense(s) & settings from file!',
+        message: '🎉 Successfully restored data from backup!\n• ${expenses.length} expense(s)\n• ${categories.length} category(ies)\n• ${people.length} person(s)\n• ${budgets.length} budget(s)\n• ${recurringExpenses.length} recurring schedule(s)',
         backupDateIso: backupPayload['exportedAt'] as String?,
         recordCount: expenses.length,
         filePath: filePath,

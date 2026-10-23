@@ -96,7 +96,27 @@
       { "id": "sub_groc_spices", "name": "Spices", "defaultClassification": "NEED", "sortOrder": 15 },
       { "id": "sub_groc_snacks", "name": "Snacks", "defaultClassification": "OPTIONAL", "sortOrder": 16 },
       { "id": "sub_groc_house", "name": "Household Grocery", "defaultClassification": "NEED", "sortOrder": 17 },
-      { "id": "sub_groc_other", "name": "Other", "defaultClassification": "NEED", "sortOrder": 18 }
+      { "id": "sub_groc_other", "name": "Other", "defaultClassification": "NEED", "sortOrder": 18 },
+      { "id": "sub_groc_tea", "name": "Tea", "defaultClassification": "NEED", "sortOrder": 19 },
+      { "id": "sub_groc_sugar", "name": "Sugar", "defaultClassification": "NEED", "sortOrder": 20 },
+      { "id": "sub_groc_dal", "name": "Dal / Pulses", "defaultClassification": "NEED", "sortOrder": 21 },
+      { "id": "sub_groc_salt", "name": "Salt", "defaultClassification": "NEED", "sortOrder": 22 },
+      { "id": "sub_groc_ghee", "name": "Ghee", "defaultClassification": "NEED", "sortOrder": 23 },
+      { "id": "sub_groc_butter", "name": "Butter", "defaultClassification": "NEED", "sortOrder": 24 },
+      { "id": "sub_groc_besan", "name": "Gram Flour (Besan)", "defaultClassification": "NEED", "sortOrder": 25 },
+      { "id": "sub_groc_chana", "name": "Chickpeas (Chana)", "defaultClassification": "NEED", "sortOrder": 26 },
+      { "id": "sub_groc_macaroni", "name": "Macaroni", "defaultClassification": "OPTIONAL", "sortOrder": 27 },
+      { "id": "sub_groc_noodles", "name": "Noodles", "defaultClassification": "OPTIONAL", "sortOrder": 28 },
+      { "id": "sub_groc_biscuits", "name": "Biscuits", "defaultClassification": "OPTIONAL", "sortOrder": 29 },
+      { "id": "sub_groc_ketchup", "name": "Ketchup / Sauces", "defaultClassification": "OPTIONAL", "sortOrder": 30 },
+      { "id": "sub_groc_juice", "name": "Juice", "defaultClassification": "OPTIONAL", "sortOrder": 31 },
+      { "id": "sub_groc_water", "name": "Mineral Water", "defaultClassification": "NEED", "sortOrder": 32 },
+      { "id": "sub_groc_surf", "name": "Surf / Detergent", "defaultClassification": "NEED", "sortOrder": 33 },
+      { "id": "sub_groc_soap", "name": "Soap", "defaultClassification": "NEED", "sortOrder": 34 },
+      { "id": "sub_groc_dishwash", "name": "Dishwash", "defaultClassification": "NEED", "sortOrder": 35 },
+      { "id": "sub_groc_shampoo", "name": "Shampoo", "defaultClassification": "NEED", "sortOrder": 36 },
+      { "id": "sub_groc_toothpaste", "name": "Toothpaste", "defaultClassification": "NEED", "sortOrder": 37 },
+      { "id": "sub_groc_tissue", "name": "Tissue", "defaultClassification": "NEED", "sortOrder": 38 }
     ]
   },
   {

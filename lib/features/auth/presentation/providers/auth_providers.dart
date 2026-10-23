@@ -13,6 +13,7 @@ import 'package:myexpence/core/providers/core_providers.dart';
 import 'package:myexpence/features/auth/domain/models/auth_user.dart';
 import 'package:myexpence/features/budgets/presentation/providers/budget_providers.dart';
 import 'package:myexpence/features/calendar/presentation/providers/calendar_providers.dart';
+import 'package:myexpence/features/categories/presentation/providers/category_providers.dart';
 import 'package:myexpence/features/dashboard/presentation/providers/dashboard_providers.dart';
 import 'package:myexpence/features/expenses/presentation/providers/expense_providers.dart';
 import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
@@ -313,6 +314,7 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     if (_ref == null) return;
     try {
       _ref.invalidate(recentExpensesProvider);
+      _ref.invalidate(allExpensesProvider);
       _ref.invalidate(dashboardDataProvider);
       _ref.invalidate(calendarMonthDataProvider);
       _ref.invalidate(peopleListProvider);
@@ -322,6 +324,8 @@ class AuthNotifier extends StateNotifier<AuthUser> {
       _ref.invalidate(budgetNotifierProvider);
       _ref.invalidate(subscriptionProvider);
       _ref.invalidate(smsWhitelistProvider);
+      _ref.invalidate(categoriesListProvider);
+      _ref.invalidate(pendingRecurringExpensesProvider);
     } catch (e) {
       debugPrint('Provider invalidation notice: $e');
     }

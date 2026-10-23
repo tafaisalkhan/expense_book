@@ -73,8 +73,11 @@ class DatabaseMigrations {
         recurringOccurrenceId TEXT,
         notes TEXT,
         status TEXT NOT NULL DEFAULT 'PAID',
-        isDeleted INTEGER NOT NULL DEFAULT 0
-        ,allocationsJson TEXT NOT NULL DEFAULT '[]'
+        isDeleted INTEGER NOT NULL DEFAULT 0,
+        allocationsJson TEXT NOT NULL DEFAULT '[]',
+        voiceNotePath TEXT,
+        voiceNoteBase64 TEXT,
+        voiceDurationSeconds INTEGER
       );
     ''');
 
@@ -250,6 +253,11 @@ class DatabaseMigrations {
       await db.execute(
           "ALTER TABLE expenses ADD COLUMN allocationsJson TEXT NOT NULL DEFAULT '[]'");
       await _createRecurringTables(db);
+    }
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE expenses ADD COLUMN voiceNotePath TEXT;');
+      await db.execute('ALTER TABLE expenses ADD COLUMN voiceNoteBase64 TEXT;');
+      await db.execute('ALTER TABLE expenses ADD COLUMN voiceDurationSeconds INTEGER;');
     }
   }
 

@@ -33,6 +33,12 @@ abstract class IExpenseRepository {
     required String endDate,
   });
   Future<List<Expense>> getRecentExpenses({int limit = 10});
+  Future<List<Expense>> getAllExpenses();
+  Future<Map<String, double>> getSpendingBySubcategory({
+    required String startDate,
+    required String endDate,
+    String? personId,
+  });
   Future<List<Expense>> getPendingExpenses();
   Future<void> approveExpense(String uuid);
   Future<void> rejectExpense(String uuid);

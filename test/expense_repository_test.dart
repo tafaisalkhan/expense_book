@@ -43,8 +43,11 @@ void main() {
             recurringOccurrenceId TEXT,
             notes TEXT,
             status TEXT NOT NULL DEFAULT 'PAID',
-            isDeleted INTEGER NOT NULL DEFAULT 0
-            ,allocationsJson TEXT NOT NULL DEFAULT '[]'
+            isDeleted INTEGER NOT NULL DEFAULT 0,
+            allocationsJson TEXT NOT NULL DEFAULT '[]',
+            voiceNotePath TEXT,
+            voiceNoteBase64 TEXT,
+            voiceDurationSeconds INTEGER
           );
         ''');
         await db.execute('''
@@ -130,6 +133,71 @@ void main() {
     final totalSpent = await repository.getTotalSpentForPeriod(
         startDate: targetDate, endDate: targetDate);
     expect(totalSpent, equals(0.0));
+  });
+
+  test('getAllExpenses retrieves all non-deleted expenses', () async {
+    const uuidGen = Uuid();
+    for (int i = 0; i < 25; i++) {
+      await repository.addExpense(Expense(
+        uuid: uuidGen.v4(),
+        amount: 100.0 * (i + 1),
+        categoryId: 'cat_food',
+        classification: ExpenseClassification.required,
+        expenseDate: '2026-09-25',
+        createdAt: DateTime.now().toIso8601String(),
+        updatedAt: DateTime.now().toIso8601String(),
+      ));
+    }
+
+    final all = await repository.getAllExpenses();
+    expect(all.length, equals(25));
+
+    final recent = await repository.getRecentExpenses(limit: 20);
+    expect(recent.length, equals(20));
+  });
+
+  test('getSpendingBySubcategory groups spending by subcategory accurately', () async {
+    const uuidGen = Uuid();
+    await repository.addExpense(Expense(
+      uuid: uuidGen.v4(),
+      amount: 1500.0,
+      categoryId: 'cat_car',
+      subcategoryId: 'sub_fuel',
+      classification: ExpenseClassification.required,
+      expenseDate: '2026-09-25',
+      createdAt: DateTime.now().toIso8601String(),
+      updatedAt: DateTime.now().toIso8601String(),
+    ));
+
+    await repository.addExpense(Expense(
+      uuid: uuidGen.v4(),
+      amount: 500.0,
+      categoryId: 'cat_car',
+      subcategoryId: 'sub_fuel',
+      classification: ExpenseClassification.required,
+      expenseDate: '2026-09-25',
+      createdAt: DateTime.now().toIso8601String(),
+      updatedAt: DateTime.now().toIso8601String(),
+    ));
+
+    await repository.addExpense(Expense(
+      uuid: uuidGen.v4(),
+      amount: 800.0,
+      categoryId: 'cat_car',
+      subcategoryId: 'sub_parking',
+      classification: ExpenseClassification.optional,
+      expenseDate: '2026-09-25',
+      createdAt: DateTime.now().toIso8601String(),
+      updatedAt: DateTime.now().toIso8601String(),
+    ));
+
+    final subSpending = await repository.getSpendingBySubcategory(
+      startDate: '2026-09-25',
+      endDate: '2026-09-25',
+    );
+
+    expect(subSpending['sub_fuel'], equals(2000.0));
+    expect(subSpending['sub_parking'], equals(800.0));
   });
 }
 

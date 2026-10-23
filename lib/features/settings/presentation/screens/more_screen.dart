@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,8 @@ import 'package:myexpence/core/utils/app_error_logger.dart';
 import 'package:myexpence/features/ads/presentation/providers/ad_providers.dart';
 import 'package:myexpence/features/auth/presentation/providers/auth_providers.dart';
 import 'package:myexpence/features/security/presentation/providers/security_providers.dart';
+import 'package:myexpence/features/settings/domain/models/app_currency.dart';
+import 'package:myexpence/features/settings/presentation/providers/settings_providers.dart';
 import 'package:myexpence/features/subscription/domain/services/local_data_backup_service.dart';
 
 class MoreScreen extends ConsumerWidget {
@@ -46,13 +49,15 @@ class MoreScreen extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              authUser.displayName ?? 'Google User',
+                              authUser.displayName ??
+                                  (kDebugMode ? 'Test User (Local Mode)' : 'Google User'),
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              authUser.email ?? 'Not logged in',
+                              authUser.email ??
+                                  (kDebugMode ? 'No login required (Test Mode)' : 'Not logged in'),
                               style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -371,6 +376,26 @@ class MoreScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  if (isAdsRemoved) ...[
+                    const SizedBox(height: 6),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          await ref.read(adNotifierProvider.notifier).resetAds();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('🔄 Ads enabled again for testing!'),
+                                backgroundColor: Colors.blue,
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text('Reset / Enable Ads (Testing)', style: TextStyle(fontSize: 12)),
+                      ),
+                    ),
+                  ],
                   if (!isAdsRemoved) ...[
                     const SizedBox(height: 6),
                     Center(
@@ -407,11 +432,25 @@ class MoreScreen extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
+                  leading: const Icon(Icons.receipt_long, color: AppTheme.primaryColor),
+                  title: const Text('All Expenses & History', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('View and filter all expenses by type, date, or category'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                    context.push('/expenses');
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
                   leading: const Icon(Icons.account_balance_wallet, color: AppTheme.primaryColor),
                   title: const Text('Monthly & Category Budgets', style: TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: const Text('Set monthly limits and receive alert warnings'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/budgets'),
+                  onTap: () {
+                    ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                    context.push('/budgets');
+                  },
                 ),
                 const Divider(height: 1),
                 ListTile(
@@ -419,7 +458,10 @@ class MoreScreen extends ConsumerWidget {
                   title: const Text('Expense Calendar', style: TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: const Text('View daily spending grid, missing days, and zero-spend log'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/calendar'),
+                  onTap: () {
+                    ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                    context.push('/calendar');
+                  },
                 ),
                 const Divider(height: 1),
                 ListTile(
@@ -427,7 +469,10 @@ class MoreScreen extends ConsumerWidget {
                   title: const Text('Family Members & Profiles', style: TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: const Text('Manage household members and student profiles'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/people'),
+                  onTap: () {
+                    ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                    context.push('/people');
+                  },
                 ),
                 const Divider(height: 1),
                 ListTile(
@@ -435,7 +480,10 @@ class MoreScreen extends ConsumerWidget {
                   title: const Text('Categories & Subcategories', style: TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: const Text('View and configure default spending taxonomy'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/categories'),
+                  onTap: () {
+                    ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                    context.push('/categories');
+                  },
                 ),
               ],
             ),
@@ -602,6 +650,26 @@ class MoreScreen extends ConsumerWidget {
               children: [
                 Consumer(
                   builder: (context, ref, _) {
+                    final currState = ref.watch(currencyNotifierProvider);
+                    final preset = currState.matchingPreset;
+                    final display = preset != null
+                        ? '${preset.flag}  ${preset.name} (${currState.symbol})'
+                        : '${currState.code} (${currState.symbol})';
+                    return ListTile(
+                      leading: const Icon(Icons.currency_exchange, color: AppTheme.primaryColor),
+                      title: const Text('Default Currency', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(
+                        'Active: $display • Tap to change',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _showCurrencyPicker(context, ref),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                Consumer(
+                  builder: (context, ref, _) {
                     final secState = ref.watch(securityNotifierProvider);
                     return SwitchListTile(
                       secondary: const Icon(Icons.fingerprint, color: AppTheme.primaryColor),
@@ -691,10 +759,178 @@ class MoreScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.info_outline, color: Colors.grey),
                   title: const Text('MyExpense Version'),
-                  subtitle: const Text('1.0.7+8 (Ad-Supported & Remove Ads Product Ready)'),
+                  subtitle: const Text('1.3.3+38 (Multi-Currency & Subcategories Ready)'),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCurrencyPicker(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        String query = '';
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final activeCurr = ref.watch(currencyNotifierProvider);
+            final filtered = famousCurrencies.where((c) {
+              final q = query.toLowerCase();
+              return c.name.toLowerCase().contains(q) ||
+                  c.code.toLowerCase().contains(q) ||
+                  c.symbol.toLowerCase().contains(q);
+            }).toList();
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.8,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (_, scrollController) {
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.currency_exchange, color: AppTheme.primaryColor),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Select App Currency',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search currency (e.g. USD, EUR, Rs, ₹)...',
+                          prefixIcon: const Icon(Icons.search),
+                          isDense: true,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onChanged: (val) => setModalState(() => query = val),
+                      ),
+                    ),
+                    const Divider(),
+                    Expanded(
+                      child: ListView.separated(
+                        controller: scrollController,
+                        itemCount: filtered.length + 1,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, idx) {
+                          if (idx == filtered.length) {
+                            return ListTile(
+                              leading: const CircleAvatar(
+                                child: Icon(Icons.edit, size: 18),
+                              ),
+                              title: const Text('Custom Currency Symbol', style: TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: const Text('Enter any custom currency code and symbol'),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                _showCustomCurrencyDialog(context, ref);
+                              },
+                            );
+                          }
+                          final c = filtered[idx];
+                          final isSelected = activeCurr.symbol == c.symbol || activeCurr.code == c.code;
+                          return ListTile(
+                            leading: Text(c.flag, style: const TextStyle(fontSize: 24)),
+                            title: Text('${c.name} (${c.symbol})', style: const TextStyle(fontWeight: FontWeight.w600)),
+                            subtitle: Text('Code: ${c.code}'),
+                            trailing: isSelected
+                                ? const Icon(Icons.check_circle, color: Colors.green)
+                                : null,
+                            selected: isSelected,
+                            onTap: () async {
+                              await ref.read(currencyNotifierProvider.notifier).setCurrency(c);
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Currency updated to ${c.name} (${c.symbol})'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showCustomCurrencyDialog(BuildContext context, WidgetRef ref) {
+    final codeCtrl = TextEditingController();
+    final symbolCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Custom Currency'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: codeCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Currency Code (e.g. SEK, CHF, KRW)',
+                border: OutlineInputBorder(),
+              ),
+              textCapitalization: TextCapitalization.characters,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: symbolCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Currency Symbol (e.g. kr, Fr, ₩)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final symbol = symbolCtrl.text.trim();
+              final code = codeCtrl.text.trim();
+              if (symbol.isEmpty) return;
+              await ref.read(currencyNotifierProvider.notifier).setCustomCurrency(code: code, symbol: symbol);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Currency updated to $code ($symbol)'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+            child: const Text('Save'),
           ),
         ],
       ),

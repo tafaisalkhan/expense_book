@@ -3,6 +3,9 @@ import 'package:myexpence/features/expenses/domain/models/payment_method.dart';
 import 'dart:convert';
 import 'package:myexpence/features/expenses/domain/models/expense_allocation.dart';
 
+export 'package:myexpence/features/expenses/domain/models/payment_method.dart'
+    show ExpenseStatus, PaymentMethod;
+
 class Expense {
   final int? id;
   final String uuid;
@@ -26,6 +29,13 @@ class Expense {
   final ExpenseStatus status;
   final bool isDeleted;
   final List<ExpenseAllocation> allocations;
+  final String? voiceNotePath;
+  final String? voiceNoteBase64;
+  final int? voiceDurationSeconds;
+
+  bool get hasVoiceNote =>
+      (voiceNotePath != null && voiceNotePath!.isNotEmpty) ||
+      (voiceNoteBase64 != null && voiceNoteBase64!.isNotEmpty);
 
   const Expense({
     this.id,
@@ -50,6 +60,9 @@ class Expense {
     this.status = ExpenseStatus.paid,
     this.isDeleted = false,
     this.allocations = const [],
+    this.voiceNotePath,
+    this.voiceNoteBase64,
+    this.voiceDurationSeconds,
   });
 
   Expense copyWith({
@@ -75,6 +88,9 @@ class Expense {
     ExpenseStatus? status,
     bool? isDeleted,
     List<ExpenseAllocation>? allocations,
+    String? voiceNotePath,
+    String? voiceNoteBase64,
+    int? voiceDurationSeconds,
   }) {
     return Expense(
       id: id ?? this.id,
@@ -100,6 +116,9 @@ class Expense {
       status: status ?? this.status,
       isDeleted: isDeleted ?? this.isDeleted,
       allocations: allocations ?? this.allocations,
+      voiceNotePath: voiceNotePath ?? this.voiceNotePath,
+      voiceNoteBase64: voiceNoteBase64 ?? this.voiceNoteBase64,
+      voiceDurationSeconds: voiceDurationSeconds ?? this.voiceDurationSeconds,
     );
   }
 
@@ -127,6 +146,9 @@ class Expense {
       'status': status.code,
       'isDeleted': isDeleted ? 1 : 0,
       'allocationsJson': jsonEncode(allocations.map((a) => a.toMap()).toList()),
+      'voiceNotePath': voiceNotePath,
+      'voiceNoteBase64': voiceNoteBase64,
+      'voiceDurationSeconds': voiceDurationSeconds,
     };
   }
 
@@ -156,6 +178,9 @@ class Expense {
       status: ExpenseStatus.fromCode((map['status'] as String?) ?? 'PAID'),
       isDeleted: (map['isDeleted'] as int) == 1,
       allocations: _allocationsFromJson(map['allocationsJson'] as String?),
+      voiceNotePath: map['voiceNotePath'] as String?,
+      voiceNoteBase64: map['voiceNoteBase64'] as String?,
+      voiceDurationSeconds: map['voiceDurationSeconds'] as int?,
     );
   }
 

@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
 import 'package:myexpence/core/utils/app_error_logger.dart';
+import 'package:myexpence/core/utils/currency_formatters.dart';
 import 'package:myexpence/features/navigation/app_router.dart';
 import 'package:myexpence/features/security/presentation/screens/app_lock_screen.dart';
 
@@ -40,18 +42,18 @@ void main() async {
   try {
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
       await MobileAds.instance.initialize();
-      await MobileAds.instance.updateRequestConfiguration(
-        RequestConfiguration(
-          testDeviceIds: [
-            '7FAD65EC0E638FA926CE871CB91C3E96',
-            'D8DC7BA59F51F2B7C1529F09E1F0EA3E',
-          ],
-        ),
-      );
     }
   } catch (e, stack) {
     AppErrorLogger.logError('AdMobInitError', e, stack);
   }
+
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final savedSymbol = prefs.getString('app_currency_symbol');
+    if (savedSymbol != null && savedSymbol.trim().isNotEmpty) {
+      CurrencyFormatters.defaultCurrency = savedSymbol.trim();
+    }
+  } catch (_) {}
 
   runApp(
     const ProviderScope(

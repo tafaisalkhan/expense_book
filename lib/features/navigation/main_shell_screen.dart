@@ -131,7 +131,11 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
     if (location.startsWith('/analytics')) return 3;
     if (location.startsWith('/more') ||
         location.startsWith('/people') ||
-        location.startsWith('/categories')) return 4;
+        location.startsWith('/categories') ||
+        location.startsWith('/calendar') ||
+        location.startsWith('/budgets')) {
+      return 4;
+    }
     return 0; // Dashboard
   }
 
@@ -212,22 +216,23 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
     final selectedIndex = _calculateSelectedIndex(context);
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            const AdBannerWidget(), // Top Banner Ad (Ad #1)
-            Expanded(
-              child: Stack(
-                children: [
-                  widget.child,
-                  DraggableFloatingActionButton(
-                    onPressed: () => context.push('/add'),
-                  ),
-                ],
-              ),
+      body: Column(
+        children: [
+          const SafeArea(bottom: false, child: AdBannerWidget(isTop: true)), // Top Banner Ad (Ad #1)
+          Expanded(
+            child: Stack(
+              children: [
+                widget.child,
+                DraggableFloatingActionButton(
+                  onPressed: () {
+                    ref.read(adNotifierProvider.notifier).recordNavigation(context, ref);
+                    context.push('/add');
+                  },
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,

@@ -12,12 +12,14 @@ class TrendPoint {
   final String label;
   final double amount;
   final DateTime date;
+  final DateTime? endDate;
 
   const TrendPoint({
     required this.x,
     required this.label,
     required this.amount,
     required this.date,
+    this.endDate,
   });
 }
 
@@ -209,24 +211,60 @@ final dashboardDataProvider = FutureProvider<DashboardData>((ref) async {
       }
     }
   } else if (timeframe == DashboardTimeframe.month) {
-    // Group into 4 or 5 weeks or daily points
+    // Partition month into calendar weeks (Monday through Sunday) so that
+    // "This Week" inside Month view matches the exact same dates and total as the "Week" timeframe view.
     final daysInMonth = endDate.day;
-    final Map<int, double> dailyMap = {};
-    for (var exp in periodExpenses) {
-      final dt = DateTime.parse(exp.expenseDate);
-      dailyMap[dt.day] = (dailyMap[dt.day] ?? 0.0) + exp.amount;
+    final List<Map<String, dynamic>> weeks = [];
+
+    int currentStartDay = 1;
+    int weekNum = 1;
+    while (currentStartDay <= daysInMonth) {
+      final startDt = DateTime(now.year, now.month, currentStartDay);
+      // In Dart, Monday is 1, Sunday is 7.
+      final daysToSunday = 7 - startDt.weekday;
+      int endDay = currentStartDay + daysToSunday;
+      if (endDay > daysInMonth) {
+        endDay = daysInMonth;
+      }
+
+      weeks.add({
+        'start': currentStartDay,
+        'end': endDay,
+        'label': 'Week $weekNum',
+      });
+
+      currentStartDay = endDay + 1;
+      weekNum++;
     }
-    for (int day = 1; day <= daysInMonth; day++) {
-      final amt = dailyMap[day] ?? 0.0;
+
+    for (int i = 0; i < weeks.length; i++) {
+      final w = weeks[i];
+      final startDay = w['start'] as int;
+      final endDay = w['end'] as int;
+      final label = w['label'] as String;
+
+      double weekTotal = 0.0;
+      for (var exp in periodExpenses) {
+        final dt = DateTime.tryParse(exp.expenseDate);
+        if (dt != null && dt.day >= startDay && dt.day <= endDay) {
+          weekTotal += exp.amount;
+        }
+      }
+
+      final startDateObj = DateTime(now.year, now.month, startDay);
+      final endDateObj = DateTime(now.year, now.month, endDay);
+
       trendPoints.add(TrendPoint(
-        x: (day - 1).toDouble(),
-        label: '$day',
-        amount: amt,
-        date: DateTime(now.year, now.month, day),
+        x: i.toDouble(),
+        label: label,
+        amount: weekTotal,
+        date: startDateObj,
+        endDate: endDateObj,
       ));
-      if (amt > highestSpendAmount) {
-        highestSpendAmount = amt;
-        highestSpendLabel = DateFormat('MMM d').format(DateTime(now.year, now.month, day));
+
+      if (weekTotal > highestSpendAmount) {
+        highestSpendAmount = weekTotal;
+        highestSpendLabel = '$label ($startDay-$endDay ${DateFormat('MMM').format(startDateObj)})';
       }
     }
   } else if (timeframe == DashboardTimeframe.year) {

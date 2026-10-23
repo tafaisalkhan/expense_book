@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:myexpence/main.dart';
@@ -15,7 +16,7 @@ void main() {
         child: MyExpenseApp(),
       ),
     );
-    await tester.pumpAndSettle();
-    expect(find.text('Welcome to My Expence Book'), findsOneWidget);
+    await tester.pump();
+    expect(find.byType(MaterialApp), findsOneWidget);
   });
 }

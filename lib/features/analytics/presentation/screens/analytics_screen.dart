@@ -5,15 +5,26 @@ import 'package:myexpence/core/theme/app_theme.dart';
 import 'package:myexpence/core/utils/currency_formatters.dart';
 import 'package:myexpence/features/analytics/presentation/providers/analytics_providers.dart';
 import 'package:myexpence/features/analytics/presentation/widgets/period_comparison_widget.dart';
+import 'package:myexpence/features/categories/presentation/providers/category_providers.dart';
+import 'package:myexpence/features/expenses/domain/models/expense.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_classification.dart';
 
-class AnalyticsScreen extends ConsumerWidget {
+class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AnalyticsScreen> createState() => _AnalyticsScreenState();
+}
+
+class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
+  bool _showSubcategories = false;
+
+  @override
+  Widget build(BuildContext context) {
     final selectedPeriod = ref.watch(selectedReportPeriodProvider);
     final reportAsync = ref.watch(analyticsReportDataProvider);
+    final categoriesList = ref.watch(categoriesListProvider).valueOrNull ?? [];
+    final categoryMap = {for (var c in categoriesList) c.id: c};
 
     return Scaffold(
       appBar: AppBar(
@@ -213,44 +224,130 @@ class AnalyticsScreen extends ConsumerWidget {
                         ),
                       const SizedBox(height: 24),
 
-                      // Category Breakdown Section
-                      Text(
-                        'Top Categories (${data.periodLabel})',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      // Category / Subcategory Breakdown Section
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _showSubcategories
+                                  ? 'Top Subcategories (${data.periodLabel})'
+                                  : 'Top Categories (${data.periodLabel})',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          SegmentedButton<bool>(
+                            segments: const [
+                              ButtonSegment(
+                                value: false,
+                                label: Text('Category', style: TextStyle(fontSize: 11)),
+                              ),
+                              ButtonSegment(
+                                value: true,
+                                label: Text('Subcategory', style: TextStyle(fontSize: 11)),
+                              ),
+                            ],
+                            selected: {_showSubcategories},
+                            onSelectionChanged: (val) {
+                              setState(() {
+                                _showSubcategories = val.first;
+                              });
+                            },
+                            style: const ButtonStyle(
+                              visualDensity: VisualDensity.compact,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: data.categoryBreakdown.isEmpty
-                              ? const Text('No category data for this period.')
-                              : Column(
-                                  children: data.categoryBreakdown.entries.map((e) {
-                                    final catPercent = total > 0 ? (e.value / total) * 100 : 0.0;
-                                    return Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                      child: Column(
-                                        children: [
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Builder(
+                        builder: (context) {
+                          final List<MapEntry<String, double>> entries;
+                          if (_showSubcategories) {
+                            final subNameMap = <String, String>{};
+                            for (final cat in categoryMap.values) {
+                              for (final sub in cat.subcategories) {
+                                subNameMap[sub.id] = sub.name;
+                                if (sub.uuid != null) subNameMap[sub.uuid!] = sub.name;
+                              }
+                            }
+                            final map = <String, double>{};
+                            for (final exp in data.expenses) {
+                              if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) continue;
+                              final subId = exp.subcategoryId;
+                              String displayName;
+                              if (subId != null && subNameMap.containsKey(subId)) {
+                                displayName = subNameMap[subId]!;
+                              } else if (subId != null && subId.trim().isNotEmpty) {
+                                displayName = subId;
+                              } else {
+                                final catName = categoryMap[exp.categoryId]?.name ??
+                                    exp.categoryId.replaceAll('cat_', '').toUpperCase();
+                                displayName = '$catName (General)';
+                              }
+                              map[displayName] = (map[displayName] ?? 0.0) + exp.amount;
+                            }
+                            entries = map.entries.toList()
+                              ..sort((a, b) => b.value.compareTo(a.value));
+                          } else {
+                            entries = data.categoryBreakdown.entries.map((e) {
+                              final name = categoryMap[e.key]?.name ??
+                                  e.key.replaceAll('cat_', '').toUpperCase();
+                              return MapEntry(name, e.value);
+                            }).toList();
+                          }
+
+                          return Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: entries.isEmpty
+                                  ? Text(_showSubcategories
+                                      ? 'No subcategory data for this period.'
+                                      : 'No category data for this period.')
+                                  : Column(
+                                      children: entries.map((e) {
+                                        final catPercent =
+                                            total > 0 ? (e.value / total) * 100 : 0.0;
+                                        return Padding(
+                                          padding:
+                                              const EdgeInsets.symmetric(vertical: 8.0),
+                                          child: Column(
                                             children: [
-                                              Text(e.key.replaceAll('cat_', '').toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
-                                              Text(CurrencyFormatters.format(e.value), style: const TextStyle(fontWeight: FontWeight.bold)),
+                                              Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(e.key,
+                                                        style: const TextStyle(
+                                                            fontWeight: FontWeight.bold),
+                                                        overflow: TextOverflow.ellipsis),
+                                                  ),
+                                                  Text(CurrencyFormatters.format(e.value),
+                                                      style: const TextStyle(
+                                                          fontWeight: FontWeight.bold)),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 4),
+                                              LinearProgressIndicator(
+                                                value: (catPercent / 100).clamp(0.0, 1.0),
+                                                backgroundColor: Colors.grey[200],
+                                                color: AppTheme.primaryColor,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
                                             ],
                                           ),
-                                          const SizedBox(height: 4),
-                                          LinearProgressIndicator(
-                                            value: catPercent / 100,
-                                            backgroundColor: Colors.grey[200],
-                                            color: AppTheme.primaryColor,
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                        ),
+                                        );
+                                      }).toList(),
+                                    ),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
 import 'package:myexpence/core/utils/date_formatters.dart';
 import 'package:myexpence/core/widgets/draggable_floating_action_button.dart';
+import 'package:myexpence/features/ads/presentation/providers/ad_providers.dart';
 import 'package:myexpence/features/categories/domain/models/category.dart';
 import 'package:myexpence/features/categories/presentation/providers/category_providers.dart';
 import 'package:myexpence/features/expenses/domain/models/expense.dart';
@@ -12,10 +13,14 @@ import 'package:myexpence/features/expenses/domain/models/payment_method.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_allocation.dart';
 import 'package:myexpence/features/expenses/domain/models/recurring_expense.dart';
 import 'package:myexpence/core/providers/core_providers.dart';
+import 'package:myexpence/core/utils/currency_formatters.dart';
 import 'package:myexpence/features/expenses/presentation/providers/expense_providers.dart';
 import 'package:myexpence/features/people/domain/models/person.dart';
 import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
 import 'package:uuid/uuid.dart';
+import 'package:myexpence/features/expenses/presentation/widgets/expense_voice_note_widget.dart';
+import 'package:myexpence/features/expenses/presentation/widgets/multi_item_picker_sheet.dart';
+import 'package:myexpence/features/settings/presentation/providers/settings_providers.dart';
 
 class AddExpenseScreen extends ConsumerStatefulWidget {
   final Expense? expenseToEdit;
@@ -33,6 +38,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _descriptionController = TextEditingController();
   final _notesController = TextEditingController();
 
+  late final String _expenseUuid;
+  String? _voiceNotePath;
+  String? _voiceNoteBase64;
+  int? _voiceDurationSeconds;
+
   DateTime _selectedDate = DateTime.now();
   TimeOfDay? _selectedTime;
   Category? _selectedCategory;
@@ -48,9 +58,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   bool _initializedEditFields = false;
 
+  /// Items picked from the grocery multi-item popup. Each one is saved as a
+  /// separate expense under its own subcategory.
+  List<MultiItemLine> _multiItems = [];
+
+  bool get _isMultiItemMode =>
+      widget.expenseToEdit == null && _multiItems.isNotEmpty;
+
+  double get _multiItemsTotal =>
+      _multiItems.fold(0.0, (sum, i) => sum + i.amount);
+
   @override
   void initState() {
     super.initState();
+    _expenseUuid = widget.expenseToEdit?.uuid ?? const Uuid().v4();
     if (widget.expenseToEdit != null) {
       final e = widget.expenseToEdit!;
       _amountController.text = e.amount.toString();
@@ -60,6 +81,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _classification = e.classification;
       _paymentMethod = e.paymentMethod;
       _isRecurring = e.recurringOccurrenceId != null;
+      _voiceNotePath = e.voiceNotePath;
+      _voiceNoteBase64 = e.voiceNoteBase64;
+      _voiceDurationSeconds = e.voiceDurationSeconds;
       for (final allocation in e.allocations) {
         _memberShares[allocation.personId] = allocation.percentage;
       }
@@ -115,11 +139,65 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     setState(() {
       _selectedCategory = cat;
       _selectedSubcategory = null;
+      _multiItems = [];
       if (cat != null) {
         _classification = cat.defaultClassification;
       }
     });
+    // For any category with subcategories: open the multi-item popup automatically (new expenses only)
+    if (widget.expenseToEdit == null && cat != null && cat.subcategories.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openMultiItemPicker());
+    }
   }
+
+  Future<void> _openMultiItemPicker() async {
+    final cat = _selectedCategory;
+    if (cat == null || !mounted) return;
+    final currentAmount = double.tryParse(_amountController.text.trim());
+    final result = await showMultiItemPickerSheet(
+      context,
+      category: cat,
+      initial: _multiItems,
+      targetTotal: currentAmount != null && currentAmount > 0 ? currentAmount : null,
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _multiItems = result;
+      if (result.isNotEmpty) {
+        _selectedSubcategory = null;
+        final t = _multiItemsTotal;
+        _amountController.text =
+            t == t.roundToDouble() ? t.toStringAsFixed(0) : t.toStringAsFixed(2);
+      }
+    });
+  }
+
+  /// Returns the subcategory id for [line], creating a new subcategory under
+  /// the selected category when the item doesn't exist yet.
+  Future<String> _ensureSubcategoryId(MultiItemLine line) async {
+    final cat = _selectedCategory!;
+    if (line.subcategoryId != null) return line.subcategoryId!;
+    final existing = [...cat.subcategories, ..._createdSubs]
+        .where((s) => s.name.trim().toLowerCase() == line.name.trim().toLowerCase())
+        .firstOrNull;
+    if (existing != null) return existing.id;
+
+    final maxSort = [...cat.subcategories, ..._createdSubs].fold<int>(
+        0, (m, s) => s.sortOrder > m ? s.sortOrder : m);
+    final sub = Subcategory(
+      id: 'sub_custom_${const Uuid().v4()}',
+      categoryId: cat.id,
+      name: line.name.trim(),
+      defaultClassification: cat.defaultClassification,
+      sortOrder: maxSort + 1,
+    );
+    await ref.read(categoryRepositoryProvider).addSubcategory(sub);
+    _createdSubs.add(sub);
+    return sub.id;
+  }
+
+  /// Subcategories auto-created during the current multi-item save.
+  final List<Subcategory> _createdSubs = [];
 
   void _onSubcategoryChanged(Subcategory? sub) {
     setState(() {
@@ -150,8 +228,25 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         ? '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}'
         : null;
 
+    if (_isMultiItemMode) {
+      final diff = (amount - _multiItemsTotal).abs();
+      if (diff > 0.01) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Total amount above (Rs ${amount.toStringAsFixed(0)}) must match the sum of subcategories (Rs ${_multiItemsTotal.toStringAsFixed(0)}).',
+            ),
+            backgroundColor: Colors.red[800],
+          ),
+        );
+        return;
+      }
+      await _saveMultiItems(allocations, dateIso, timeStr, nowStr);
+      return;
+    }
+
     final expense = Expense(
-      uuid: isEdit ? widget.expenseToEdit!.uuid : const Uuid().v4(),
+      uuid: _expenseUuid,
       amount: amount,
       categoryId: _selectedCategory!.id,
       subcategoryId: _selectedSubcategory?.id,
@@ -175,7 +270,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           : null,
       receiptId: isEdit ? widget.expenseToEdit!.receiptId : null,
       status: isEdit ? widget.expenseToEdit!.status : ExpenseStatus.paid,
+      currency: CurrencyFormatters.defaultCurrency,
       allocations: allocations,
+      voiceNotePath: _voiceNotePath,
+      voiceNoteBase64: _voiceNoteBase64,
+      voiceDurationSeconds: _voiceDurationSeconds,
     );
 
     if (isEdit) {
@@ -201,8 +300,87 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                 ? 'Expense updated successfully!'
                 : 'Expense added successfully!')),
       );
+      ref.read(adNotifierProvider.notifier).recordNavigation(context);
       context.pop();
     }
+  }
+
+  /// Saves every selected grocery item as its own expense row (own
+  /// subcategory, own amount). Shared fields (date, person, payment, notes)
+  /// are copied to each row; the voice note is attached to the first row.
+  Future<void> _saveMultiItems(
+    List<ExpenseAllocation> allocations,
+    String dateIso,
+    String? timeStr,
+    String nowStr,
+  ) async {
+    final notifier = ref.read(expenseNotifierProvider.notifier);
+    final merchant = _merchantController.text.trim();
+    final notes = _notesController.text.trim();
+    var first = true;
+
+    for (final item in _multiItems) {
+      final subId = await _ensureSubcategoryId(item);
+      final sub = [..._selectedCategory!.subcategories, ..._createdSubs]
+          .where((s) => s.id == subId)
+          .firstOrNull;
+      // Scale member split to this item's amount (percentages stay the same)
+      final itemAllocations = allocations
+          .map((a) => ExpenseAllocation(
+                personId: a.personId,
+                personName: a.personName,
+                percentage: a.percentage,
+                amount: item.amount * a.percentage / 100,
+              ))
+          .toList();
+
+      final expense = Expense(
+        uuid: first ? _expenseUuid : const Uuid().v4(),
+        amount: item.amount,
+        categoryId: _selectedCategory!.id,
+        subcategoryId: subId,
+        personId: itemAllocations.isEmpty
+            ? _selectedPerson?.uuid
+            : (itemAllocations.length == 1 ? itemAllocations.first.personId : null),
+        classification: sub?.defaultClassification ?? _classification,
+        expenseDate: dateIso,
+        expenseTime: timeStr,
+        createdAt: nowStr,
+        updatedAt: nowStr,
+        merchant: merchant.isNotEmpty ? merchant : null,
+        description: item.displayName,
+        paymentMethod: _paymentMethod,
+        currency: CurrencyFormatters.defaultCurrency,
+        notes: notes.isNotEmpty ? notes : null,
+        status: ExpenseStatus.paid,
+        allocations: itemAllocations,
+        voiceNotePath: first ? _voiceNotePath : null,
+        voiceNoteBase64: first ? _voiceNoteBase64 : null,
+        voiceDurationSeconds: first ? _voiceDurationSeconds : null,
+      );
+      await notifier.addExpense(expense);
+
+      if (_isRecurring) {
+        await ref.read(recurringExpenseServiceProvider).saveSchedule(
+              template: expense,
+              frequency: _recurrenceFrequency,
+              intervalDays: _intervalDays,
+            );
+      }
+      first = false;
+    }
+
+    if (!mounted) return;
+    final container = ProviderScope.containerOf(context, listen: false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content:
+              Text('${_multiItems.length} items saved as separate expenses!')),
+    );
+    ref.read(adNotifierProvider.notifier).recordNavigation(context);
+    context.pop();
+    // Refresh categories (new custom subcategories) after leaving this screen
+    if (_createdSubs.isNotEmpty) container.invalidate(categoriesListProvider);
   }
 
   List<ExpenseAllocation>? _buildAllocations(
@@ -215,7 +393,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(_splitByPercentage
             ? 'Member percentages must total 100%.'
-            : 'Member amounts must total Rs ${total.toStringAsFixed(2)}.'),
+            : 'Member amounts must total ${CurrencyFormatters.defaultCurrency} ${total.toStringAsFixed(2)}.'),
       ));
       return null;
     }
@@ -237,6 +415,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(currencyNotifierProvider);
     final categoriesAsync = ref.watch(categoriesListProvider);
     final peopleAsync = ref.watch(peopleListProvider);
 
@@ -270,23 +449,34 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                   // 1. Amount Field
                   TextFormField(
                     controller: _amountController,
+                    readOnly: _isMultiItemMode,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     style: const TextStyle(
                         fontSize: 28, fontWeight: FontWeight.bold),
-                    decoration: const InputDecoration(
-                      labelText: 'Amount *',
+                    decoration: InputDecoration(
+                      labelText: _isMultiItemMode
+                          ? 'Total of ${_multiItems.length} items'
+                          : 'Amount *',
                       prefixText: 'Rs ',
-                      prefixStyle:
-                          TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                      border: OutlineInputBorder(),
+                      prefixStyle: const TextStyle(
+                          fontSize: 28, fontWeight: FontWeight.bold),
+                      border: const OutlineInputBorder(),
                     ),
                     validator: (val) {
-                      if (val == null || val.trim().isEmpty)
+                      if (val == null || val.trim().isEmpty) {
                         return 'Enter amount';
-                      if (double.tryParse(val) == null ||
-                          double.parse(val) <= 0)
+                      }
+                      final amt = double.tryParse(val);
+                      if (amt == null || amt <= 0) {
                         return 'Enter valid positive amount';
+                      }
+                      if (_isMultiItemMode) {
+                        final diff = (amt - _multiItemsTotal).abs();
+                        if (diff > 0.01) {
+                          return 'Amount must match subcategories total (Rs ${_multiItemsTotal.toStringAsFixed(0)})';
+                        }
+                      }
                       return null;
                     },
                   ),
@@ -376,7 +566,14 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                             }).toList(),
                             onChanged: _onCategoryChanged,
                           ),
-                          if (_selectedCategory != null &&
+                          if (widget.expenseToEdit == null &&
+                              _selectedCategory != null &&
+                              _selectedCategory!.subcategories.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            _buildMultiItemSection(),
+                          ],
+                          if (!_isMultiItemMode &&
+                              _selectedCategory != null &&
                               _selectedCategory!.subcategories.isNotEmpty) ...[
                             const SizedBox(height: 16),
                             DropdownButtonFormField<Subcategory>(
@@ -554,9 +751,23 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                     ),
                     maxLines: 2,
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
-                  const SizedBox(height: 30),
+                  // 8. Voice Note
+                  ExpenseVoiceNoteWidget(
+                    expenseUuid: _expenseUuid,
+                    initialVoiceNotePath: _voiceNotePath,
+                    initialVoiceNoteBase64: _voiceNoteBase64,
+                    initialDurationSeconds: _voiceDurationSeconds,
+                    onVoiceNoteChanged: ({localPath, base64Data, durationSeconds}) {
+                      setState(() {
+                        _voiceNotePath = localPath;
+                        _voiceNoteBase64 = base64Data;
+                        _voiceDurationSeconds = durationSeconds;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 28),
                 ],
               ),
             ),
@@ -570,6 +781,91 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             initialBottom: 24,
             initialRight: 16,
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMultiItemSection() {
+    String fmt(double v) =>
+        v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.playlist_add_check, color: Colors.green, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _multiItems.isEmpty
+                      ? 'Select multiple ${_selectedCategory?.name ?? "sub-items"}'
+                      : '${_multiItems.length} items (saved separately)',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _openMultiItemPicker,
+                icon: Icon(_multiItems.isEmpty ? Icons.add : Icons.edit, size: 18),
+                label: Text(_multiItems.isEmpty ? 'Select' : 'Edit'),
+              ),
+            ],
+          ),
+          if (_multiItems.isEmpty)
+            Text(
+              'Select multiple items above, or pick a single subcategory below.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+          ..._multiItems.map((item) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(item.displayName)),
+                    Text('${CurrencyFormatters.defaultCurrency} ${fmt(item.amount)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.close, size: 16),
+                      onPressed: () => setState(() {
+                        _multiItems = [..._multiItems]..remove(item);
+                        _amountController.text =
+                            _multiItems.isEmpty ? '' : fmt(_multiItemsTotal);
+                      }),
+                    ),
+                  ],
+                ),
+              )),
+          if (_multiItems.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Subcategories Total:',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text('${CurrencyFormatters.defaultCurrency} ${fmt(_multiItemsTotal)}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14, color: Colors.green)),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -620,7 +916,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
-                      suffixText: _splitByPercentage ? '%' : 'Rs',
+                      suffixText: _splitByPercentage ? '%' : CurrencyFormatters.defaultCurrency,
                       isDense: true,
                     ),
                     onChanged: (value) => _memberShares[person.uuid] =

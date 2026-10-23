@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
+import 'package:myexpence/core/utils/currency_formatters.dart';
 import 'package:myexpence/core/utils/date_formatters.dart';
 import 'package:myexpence/core/utils/network_helper.dart';
 import 'package:myexpence/features/categories/domain/models/category.dart';
@@ -366,7 +367,7 @@ class _ShareDocumentReviewScreenState extends ConsumerState<ShareDocumentReviewS
                   onPressed: () {
                     final newName = nameCtrl.text.trim();
                     final newAmt = double.tryParse(amtCtrl.text) ?? item.amount;
-                    final newQty = int.tryParse(qtyCtrl.text) ?? item.quantity;
+                    final newQty = double.tryParse(qtyCtrl.text) ?? item.quantity;
                     if (newName.isNotEmpty) {
                       setState(() {
                         _extractedItems[index] = item.copyWith(
@@ -880,7 +881,7 @@ class _ShareDocumentReviewScreenState extends ConsumerState<ShareDocumentReviewS
                                             const Icon(Icons.edit_outlined, size: 16, color: AppTheme.primaryColor),
                                           ],
                                         ),
-                                        Text('Qty: ${item.quantity}  •  Rs ${item.amount.toStringAsFixed(2)} each', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                        Text('Qty: ${item.quantity == item.quantity.roundToDouble() ? item.quantity.toInt() : item.quantity}  •  ${CurrencyFormatters.defaultCurrency} ${item.amount.toStringAsFixed(2)} each', style: const TextStyle(fontSize: 11, color: Colors.grey)),
                                         const SizedBox(height: 2),
                                         Wrap(
                                           spacing: 4,
@@ -919,7 +920,7 @@ class _ShareDocumentReviewScreenState extends ConsumerState<ShareDocumentReviewS
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'Rs ${(item.amount * item.quantity).toStringAsFixed(2)}',
+                                    '${CurrencyFormatters.defaultCurrency} ${(item.amount * item.quantity).toStringAsFixed(2)}',
                                     style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal, fontSize: 13),
                                   ),
                                 ],
