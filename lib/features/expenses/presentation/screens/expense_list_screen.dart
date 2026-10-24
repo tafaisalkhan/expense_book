@@ -535,6 +535,15 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                                   await ref
                                       .read(expenseNotifierProvider.notifier)
                                       .deleteExpense(item.uuid);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Expense deleted successfully'),
+                                        backgroundColor: Colors.red,
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
                                 }
                               }
                             },

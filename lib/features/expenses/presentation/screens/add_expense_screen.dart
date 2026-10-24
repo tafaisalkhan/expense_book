@@ -18,6 +18,7 @@ import 'package:myexpence/features/expenses/presentation/providers/expense_provi
 import 'package:myexpence/features/people/domain/models/person.dart';
 import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
 import 'package:uuid/uuid.dart';
+import 'package:myexpence/core/utils/math_evaluator.dart';
 import 'package:myexpence/features/expenses/presentation/widgets/expense_voice_note_widget.dart';
 import 'package:myexpence/features/expenses/presentation/widgets/multi_item_picker_sheet.dart';
 import 'package:myexpence/features/settings/presentation/providers/settings_providers.dart';
@@ -153,6 +154,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   Future<void> _openMultiItemPicker() async {
     final cat = _selectedCategory;
     if (cat == null || !mounted) return;
+    final evalAmt = MathEvaluator.tryEvaluate(_amountController.text.trim());
+    if (evalAmt != null && evalAmt > 0) {
+      _amountController.text = MathEvaluator.format(evalAmt);
+    }
     final currentAmount = double.tryParse(_amountController.text.trim());
     final result = await showMultiItemPickerSheet(
       context,
@@ -162,14 +167,137 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     );
     if (result == null || !mounted) return;
     setState(() {
-      _multiItems = result;
-      if (result.isNotEmpty) {
+      _multiItems = result.items;
+      if (result.items.isNotEmpty) {
         _selectedSubcategory = null;
         final t = _multiItemsTotal;
         _amountController.text =
             t == t.roundToDouble() ? t.toStringAsFixed(0) : t.toStringAsFixed(2);
+      } else if (result.targetTotal != null && result.targetTotal! > 0) {
+        final t = result.targetTotal!;
+        _amountController.text =
+            t == t.roundToDouble() ? t.toStringAsFixed(0) : t.toStringAsFixed(2);
       }
     });
+  }
+
+  Future<void> _confirmDeleteExpense() async {
+    if (widget.expenseToEdit == null) return;
+    final sym = CurrencyFormatters.defaultCurrency;
+    final amtStr = _amountController.text.trim();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Delete Expense'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete this expense of $sym $amtStr? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      await ref
+          .read(expenseNotifierProvider.notifier)
+          .deleteExpense(widget.expenseToEdit!.uuid);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Expense deleted successfully'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        ref.read(adNotifierProvider.notifier).recordNavigation(context);
+        context.pop();
+      }
+    }
+  }
+
+  void _insertMathChar(String char) {
+    final text = _amountController.text;
+    final selection = _amountController.selection;
+    if (char == '=') {
+      final evaluated = MathEvaluator.tryEvaluate(text);
+      if (evaluated != null) {
+        setState(() {
+          _amountController.text = MathEvaluator.format(evaluated);
+          _amountController.selection =
+              TextSelection.collapsed(offset: _amountController.text.length);
+        });
+      }
+      return;
+    }
+
+    String newText;
+    int newOffset;
+    if (selection.isValid && selection.start >= 0 && selection.end <= text.length) {
+      newText = text.replaceRange(selection.start, selection.end, char);
+      newOffset = selection.start + char.length;
+    } else {
+      newText = '$text$char';
+      newOffset = newText.length;
+    }
+
+    setState(() {
+      _amountController.text = newText;
+      _amountController.selection = TextSelection.collapsed(offset: newOffset);
+    });
+  }
+
+  String? _getAmountHelperText() {
+    if (_isMultiItemMode) return null;
+    final text = _amountController.text.trim();
+    if (MathEvaluator.hasOperator(text)) {
+      final eval = MathEvaluator.tryEvaluate(text);
+      if (eval != null) {
+        return '= ${CurrencyFormatters.defaultCurrency} ${MathEvaluator.format(eval)} (tap = to apply)';
+      }
+    }
+    return null;
+  }
+
+  Widget _buildMathChip(String label, {bool isAction = false}) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      onTap: () => _insertMathChar(label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isAction
+              ? Colors.green.withValues(alpha: 0.15)
+              : Colors.grey.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isAction ? Colors.green : Colors.grey.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: isAction ? Colors.green.shade800 : null,
+          ),
+        ),
+      ),
+    );
   }
 
   /// Returns the subcategory id for [line], creating a new subcategory under
@@ -217,6 +345,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       return;
     }
 
+    final evalAmt = MathEvaluator.tryEvaluate(_amountController.text.trim());
+    if (evalAmt != null && evalAmt > 0) {
+      _amountController.text = MathEvaluator.format(evalAmt);
+    }
     final amount = double.tryParse(_amountController.text) ?? 0.0;
     final people = ref.read(peopleListProvider).valueOrNull ?? [];
     final allocations = _buildAllocations(amount, people);
@@ -321,28 +453,38 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
     for (final item in _multiItems) {
       final subId = await _ensureSubcategoryId(item);
-      final sub = [..._selectedCategory!.subcategories, ..._createdSubs]
-          .where((s) => s.id == subId)
-          .firstOrNull;
-      // Scale member split to this item's amount (percentages stay the same)
-      final itemAllocations = allocations
-          .map((a) => ExpenseAllocation(
-                personId: a.personId,
-                personName: a.personName,
-                percentage: a.percentage,
-                amount: item.amount * a.percentage / 100,
-              ))
-          .toList();
+      // If the item itself has an assigned family member, allocate 100% to that member.
+      // Otherwise, scale overall member allocations to this item's amount.
+      final List<ExpenseAllocation> itemAllocations = item.personId != null
+          ? [
+              ExpenseAllocation(
+                personId: item.personId!,
+                personName: item.personName ?? 'Member',
+                percentage: 100,
+                amount: item.amount,
+              )
+            ]
+          : allocations
+              .map((a) => ExpenseAllocation(
+                    personId: a.personId,
+                    personName: a.personName,
+                    percentage: a.percentage,
+                    amount: item.amount * a.percentage / 100,
+                  ))
+              .toList();
+
+      final String? assignedPersonId = item.personId ??
+          (itemAllocations.isEmpty
+              ? _selectedPerson?.uuid
+              : (itemAllocations.length == 1 ? itemAllocations.first.personId : null));
 
       final expense = Expense(
         uuid: first ? _expenseUuid : const Uuid().v4(),
         amount: item.amount,
         categoryId: _selectedCategory!.id,
         subcategoryId: subId,
-        personId: itemAllocations.isEmpty
-            ? _selectedPerson?.uuid
-            : (itemAllocations.length == 1 ? itemAllocations.first.personId : null),
-        classification: sub?.defaultClassification ?? _classification,
+        personId: assignedPersonId,
+        classification: item.classification,
         expenseDate: dateIso,
         expenseTime: timeStr,
         createdAt: nowStr,
@@ -434,6 +576,12 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             tooltip: 'Share / Attach Receipt Slip',
             onPressed: () => context.push('/share-receipt'),
           ),
+          if (widget.expenseToEdit != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              tooltip: 'Delete Expense',
+              onPressed: _confirmDeleteExpense,
+            ),
         ],
       ),
       body: Stack(
@@ -450,36 +598,66 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                   TextFormField(
                     controller: _amountController,
                     readOnly: _isMultiItemMode,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: TextInputType.text,
                     style: const TextStyle(
                         fontSize: 28, fontWeight: FontWeight.bold),
                     decoration: InputDecoration(
                       labelText: _isMultiItemMode
                           ? 'Total of ${_multiItems.length} items'
                           : 'Amount *',
-                      prefixText: 'Rs ',
+                      prefixText: '${CurrencyFormatters.defaultCurrency} ',
                       prefixStyle: const TextStyle(
                           fontSize: 28, fontWeight: FontWeight.bold),
                       border: const OutlineInputBorder(),
+                      helperText: _getAmountHelperText(),
+                      helperStyle: const TextStyle(
+                          color: Colors.green, fontWeight: FontWeight.bold),
+                      suffixIcon: !_isMultiItemMode &&
+                              MathEvaluator.hasOperator(_amountController.text)
+                          ? IconButton(
+                              icon: const Icon(Icons.calculate, color: Colors.green),
+                              tooltip: 'Calculate Expression',
+                              onPressed: () => _insertMathChar('='),
+                            )
+                          : null,
                     ),
+                    onChanged: (_) => setState(() {}),
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
                         return 'Enter amount';
                       }
-                      final amt = double.tryParse(val);
+                      final amt = MathEvaluator.tryEvaluate(val);
                       if (amt == null || amt <= 0) {
-                        return 'Enter valid positive amount';
+                        return 'Enter valid positive amount (e.g. 500 or 800+100)';
                       }
                       if (_isMultiItemMode) {
                         final diff = (amt - _multiItemsTotal).abs();
                         if (diff > 0.01) {
-                          return 'Amount must match subcategories total (Rs ${_multiItemsTotal.toStringAsFixed(0)})';
+                          return 'Amount must match subcategories total (${CurrencyFormatters.defaultCurrency} ${_multiItemsTotal.toStringAsFixed(0)})';
                         }
                       }
                       return null;
                     },
                   ),
+                  if (!_isMultiItemMode) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Text('Quick math:',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        const SizedBox(width: 6),
+                        _buildMathChip('+'),
+                        const SizedBox(width: 4),
+                        _buildMathChip('-'),
+                        const SizedBox(width: 4),
+                        _buildMathChip('*'),
+                        const SizedBox(width: 4),
+                        _buildMathChip('/'),
+                        const SizedBox(width: 6),
+                        _buildMathChip('=', isAction: true),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 20),
 
                   // 2. Quick Date Buttons (TODAY, YESTERDAY, SELECT DATE)
@@ -767,6 +945,25 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                       });
                     },
                   ),
+                  if (widget.expenseToEdit != null) ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Delete Expense',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        onPressed: _confirmDeleteExpense,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 28),
                 ],
               ),
@@ -831,7 +1028,43 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                   children: [
                     const Icon(Icons.check_circle, size: 16, color: Colors.green),
                     const SizedBox(width: 8),
-                    Expanded(child: Text(item.displayName)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item.displayName, style: const TextStyle(fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: _getClassificationColor(item.classification).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  item.classification.label,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: _getClassificationColor(item.classification),
+                                  ),
+                                ),
+                              ),
+                              if (item.personName != null && item.personName!.isNotEmpty) ...[
+                                const SizedBox(width: 6),
+                                Icon(Icons.person, size: 11, color: Colors.grey.shade600),
+                                const SizedBox(width: 2),
+                                Text(
+                                  item.personName!,
+                                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                     Text('${CurrencyFormatters.defaultCurrency} ${fmt(item.amount)}',
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                     IconButton(
@@ -992,5 +1225,18 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         ),
       ),
     );
+  }
+
+  Color _getClassificationColor(ExpenseClassification classification) {
+    switch (classification) {
+      case ExpenseClassification.urgent:
+        return AppTheme.urgentColor;
+      case ExpenseClassification.required:
+        return AppTheme.requiredColor;
+      case ExpenseClassification.optional:
+        return AppTheme.optionalColor;
+      case ExpenseClassification.lost:
+        return AppTheme.lostColor;
+    }
   }
 }
