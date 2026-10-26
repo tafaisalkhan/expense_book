@@ -1,10 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:myexpence/core/providers/core_providers.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
+import 'package:myexpence/core/utils/date_formatters.dart';
+import 'package:myexpence/features/categories/presentation/providers/category_providers.dart';
+import 'package:myexpence/features/expenses/domain/models/expense.dart';
+import 'package:myexpence/features/expenses/presentation/widgets/category_expense_detail_sheet.dart';
+import 'package:myexpence/features/people/domain/models/person.dart';
 import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
 
 class PeopleScreen extends ConsumerWidget {
   const PeopleScreen({super.key});
+
+  Future<void> _openPersonReport(
+      BuildContext context, WidgetRef ref, Person person) async {
+    final repo = ref.read(expenseRepositoryProvider);
+    final now = DateTime.now();
+    final startIso = DateFormatters.formatDateIso(DateTime(now.year, now.month, 1));
+    final endIso = DateFormatters.formatDateIso(DateTime(now.year, now.month + 1, 0));
+    final allExpenses =
+        await repo.getExpensesForPeriod(startDate: startIso, endDate: endIso);
+    final categoriesList = ref.read(categoriesListProvider).valueOrNull ?? [];
+    final categoryMap = {for (var c in categoriesList) c.id: c};
+    final personExpenses = allExpenses.where((exp) {
+      if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) return false;
+      return exp.personId == person.uuid ||
+          exp.allocations.any((a) => a.personId == person.uuid);
+    }).toList();
+    final totalSpent = personExpenses.fold(0.0, (sum, exp) => sum + exp.amount);
+    if (context.mounted) {
+      showCategoryExpenseDetailSheet(
+        context: context,
+        ref: ref,
+        title: '${person.name}\'s Expenses',
+        isSubcategory: false,
+        totalAmount: totalSpent,
+        expenses: personExpenses,
+        categoryMap: categoryMap,
+        timeframeLabel: 'This Month',
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,6 +88,7 @@ class PeopleScreen extends ConsumerWidget {
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     child: ListTile(
+                      onTap: () => _openPersonReport(context, ref, person),
                       leading: CircleAvatar(
                         backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
                         child: Text(
@@ -76,6 +113,11 @@ class PeopleScreen extends ConsumerWidget {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          IconButton(
+                            icon: const Icon(Icons.bar_chart, size: 20, color: AppTheme.primaryColor),
+                            tooltip: 'View Expense Report',
+                            onPressed: () => _openPersonReport(context, ref, person),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.edit, size: 20),
                             onPressed: () => showAddPersonDialog(context, ref, existingPerson: person),

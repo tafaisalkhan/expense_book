@@ -3,11 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
 import 'package:myexpence/core/utils/currency_formatters.dart';
+import 'package:myexpence/features/expenses/presentation/widgets/category_expense_detail_sheet.dart';
 import 'package:myexpence/features/analytics/presentation/providers/analytics_providers.dart';
 import 'package:myexpence/features/analytics/presentation/widgets/period_comparison_widget.dart';
 import 'package:myexpence/features/categories/presentation/providers/category_providers.dart';
 import 'package:myexpence/features/expenses/domain/models/expense.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_classification.dart';
+import 'package:myexpence/features/people/domain/models/person.dart';
+import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
+
+enum BreakdownTab {
+  category,
+  subcategory,
+  familyMember,
+}
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -17,7 +26,7 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
 }
 
 class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
-  bool _showSubcategories = false;
+  BreakdownTab _breakdownTab = BreakdownTab.category;
 
   @override
   Widget build(BuildContext context) {
@@ -224,15 +233,17 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                         ),
                       const SizedBox(height: 24),
 
-                      // Category / Subcategory Breakdown Section
+                      // Category / Subcategory / Family Member Breakdown Section
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: Text(
-                              _showSubcategories
-                                  ? 'Top Subcategories (${data.periodLabel})'
-                                  : 'Top Categories (${data.periodLabel})',
+                              _breakdownTab == BreakdownTab.familyMember
+                                  ? 'Spending by Member (${data.periodLabel})'
+                                  : (_breakdownTab == BreakdownTab.subcategory
+                                      ? 'Top Subcategories (${data.periodLabel})'
+                                      : 'Top Categories (${data.periodLabel})'),
                               style: Theme.of(context)
                                   .textTheme
                                   .titleMedium
@@ -240,21 +251,25 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          SegmentedButton<bool>(
+                          SegmentedButton<BreakdownTab>(
                             segments: const [
                               ButtonSegment(
-                                value: false,
-                                label: Text('Category', style: TextStyle(fontSize: 11)),
+                                value: BreakdownTab.category,
+                                label: Text('Category', style: TextStyle(fontSize: 10)),
                               ),
                               ButtonSegment(
-                                value: true,
-                                label: Text('Subcategory', style: TextStyle(fontSize: 11)),
+                                value: BreakdownTab.subcategory,
+                                label: Text('Subcategory', style: TextStyle(fontSize: 10)),
+                              ),
+                              ButtonSegment(
+                                value: BreakdownTab.familyMember,
+                                label: Text('Member', style: TextStyle(fontSize: 10)),
                               ),
                             ],
-                            selected: {_showSubcategories},
+                            selected: {_breakdownTab},
                             onSelectionChanged: (val) {
                               setState(() {
-                                _showSubcategories = val.first;
+                                _breakdownTab = val.first;
                               });
                             },
                             style: const ButtonStyle(
@@ -267,15 +282,41 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                       const SizedBox(height: 8),
                       Builder(
                         builder: (context) {
+                          final peopleList = ref.watch(peopleListProvider).valueOrNull ?? [];
+                          final personNameMap = {for (var p in peopleList) p.uuid: p.name};
+
+                          final subNameMap = <String, String>{};
+                          for (final cat in categoryMap.values) {
+                            for (final sub in cat.subcategories) {
+                              subNameMap[sub.id] = sub.name;
+                              if (sub.uuid != null) subNameMap[sub.uuid!] = sub.name;
+                            }
+                          }
+
                           final List<MapEntry<String, double>> entries;
-                          if (_showSubcategories) {
-                            final subNameMap = <String, String>{};
-                            for (final cat in categoryMap.values) {
-                              for (final sub in cat.subcategories) {
-                                subNameMap[sub.id] = sub.name;
-                                if (sub.uuid != null) subNameMap[sub.uuid!] = sub.name;
+                          if (_breakdownTab == BreakdownTab.familyMember) {
+                            final map = <String, double>{};
+                            for (final exp in data.expenses) {
+                              if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) continue;
+                              if (exp.allocations.isNotEmpty) {
+                                for (final alloc in exp.allocations) {
+                                  final pName = personNameMap[alloc.personId] ?? alloc.personName;
+                                  final name = pName.trim().isNotEmpty ? pName : 'Household (General)';
+                                  map[name] = (map[name] ?? 0.0) + alloc.amount;
+                                }
+                              } else if (exp.personId != null &&
+                                  exp.personId!.isNotEmpty &&
+                                  exp.personId != 'household') {
+                                final name = personNameMap[exp.personId!] ?? 'Family Member';
+                                map[name] = (map[name] ?? 0.0) + exp.amount;
+                              } else {
+                                map['Household (General)'] =
+                                    (map['Household (General)'] ?? 0.0) + exp.amount;
                               }
                             }
+                            entries = map.entries.toList()
+                              ..sort((a, b) => b.value.compareTo(a.value));
+                          } else if (_breakdownTab == BreakdownTab.subcategory) {
                             final map = <String, double>{};
                             for (final exp in data.expenses) {
                               if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) continue;
@@ -297,7 +338,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           } else {
                             entries = data.categoryBreakdown.entries.map((e) {
                               final name = categoryMap[e.key]?.name ??
-                                  e.key.replaceAll('cat_', '').toUpperCase();
+                                   e.key.replaceAll('cat_', '').toUpperCase();
                               return MapEntry(name, e.value);
                             }).toList();
                           }
@@ -306,44 +347,151 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                             child: Padding(
                               padding: const EdgeInsets.all(16.0),
                               child: entries.isEmpty
-                                  ? Text(_showSubcategories
-                                      ? 'No subcategory data for this period.'
-                                      : 'No category data for this period.')
+                                  ? Text(_breakdownTab == BreakdownTab.familyMember
+                                      ? 'No family member expense data for this period.'
+                                      : (_breakdownTab == BreakdownTab.subcategory
+                                          ? 'No subcategory data for this period.'
+                                          : 'No category data for this period.'))
                                   : Column(
-                                      children: entries.map((e) {
-                                        final catPercent =
-                                            total > 0 ? (e.value / total) * 100 : 0.0;
-                                        return Padding(
-                                          padding:
-                                              const EdgeInsets.symmetric(vertical: 8.0),
-                                          child: Column(
-                                            children: [
-                                              Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.spaceBetween,
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(e.key,
-                                                        style: const TextStyle(
-                                                            fontWeight: FontWeight.bold),
-                                                        overflow: TextOverflow.ellipsis),
-                                                  ),
-                                                  Text(CurrencyFormatters.format(e.value),
-                                                      style: const TextStyle(
-                                                          fontWeight: FontWeight.bold)),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 4),
-                                              LinearProgressIndicator(
-                                                value: (catPercent / 100).clamp(0.0, 1.0),
-                                                backgroundColor: Colors.grey[200],
-                                                color: AppTheme.primaryColor,
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                            ],
+                                      children: [
+                                        Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: Text(
+                                            '(Tap any item to view all matching expenses)',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey.shade600,
+                                              fontStyle: FontStyle.italic,
+                                            ),
                                           ),
-                                        );
-                                      }).toList(),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        ...entries.map((e) {
+                                          final catPercent =
+                                              total > 0 ? (e.value / total) * 100 : 0.0;
+                                          return Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              borderRadius: BorderRadius.circular(8),
+                                              onTap: () {
+                                                final List<Expense> matching;
+                                                if (_breakdownTab == BreakdownTab.familyMember) {
+                                                  matching = data.expenses.where((exp) {
+                                                    if (exp.isDeleted ||
+                                                        exp.status == ExpenseStatus.cancelled) {
+                                                      return false;
+                                                    }
+                                                    if (e.key == 'Household (General)') {
+                                                      if (exp.allocations.isEmpty &&
+                                                          (exp.personId == null ||
+                                                              exp.personId!.isEmpty ||
+                                                              exp.personId == 'household')) {
+                                                        return true;
+                                                      }
+                                                      return exp.allocations
+                                                          .any((a) => a.personId == 'household');
+                                                    }
+                                                    final targetPerson = peopleList
+                                                        .where((p) => p.name == e.key)
+                                                        .firstOrNull;
+                                                    if (targetPerson != null) {
+                                                      if (exp.personId == targetPerson.uuid) {
+                                                        return true;
+                                                      }
+                                                      if (exp.allocations.any(
+                                                          (a) => a.personId == targetPerson.uuid)) {
+                                                        return true;
+                                                      }
+                                                    }
+                                                    return false;
+                                                  }).toList();
+                                                } else if (_breakdownTab == BreakdownTab.subcategory) {
+                                                  matching = data.expenses.where((exp) {
+                                                    if (exp.isDeleted ||
+                                                        exp.status == ExpenseStatus.cancelled) {
+                                                      return false;
+                                                    }
+                                                    final subId = exp.subcategoryId;
+                                                    String displayName;
+                                                    if (subId != null &&
+                                                        subNameMap.containsKey(subId)) {
+                                                      displayName = subNameMap[subId]!;
+                                                    } else if (subId != null &&
+                                                        subId.trim().isNotEmpty) {
+                                                      displayName = subId;
+                                                    } else {
+                                                      final catName = categoryMap[exp.categoryId]?.name ??
+                                                          exp.categoryId
+                                                              .replaceAll('cat_', '')
+                                                              .toUpperCase();
+                                                      displayName = '$catName (General)';
+                                                    }
+                                                    return displayName == e.key;
+                                                  }).toList();
+                                                } else {
+                                                  matching = data.expenses.where((exp) {
+                                                    if (exp.isDeleted ||
+                                                        exp.status == ExpenseStatus.cancelled) {
+                                                      return false;
+                                                    }
+                                                    final catName = categoryMap[exp.categoryId]?.name ??
+                                                        exp.categoryId
+                                                            .replaceAll('cat_', '')
+                                                            .toUpperCase();
+                                                    return exp.categoryId == e.key || catName == e.key;
+                                                  }).toList();
+                                                }
+
+                                                showCategoryExpenseDetailSheet(
+                                                  context: context,
+                                                  ref: ref,
+                                                  title: _breakdownTab == BreakdownTab.familyMember
+                                                      ? '${e.key} Expenses'
+                                                      : e.key,
+                                                  isSubcategory: _breakdownTab == BreakdownTab.subcategory,
+                                                  totalAmount: e.value,
+                                                  expenses: matching,
+                                                  categoryMap: categoryMap,
+                                                  timeframeLabel: selectedPeriod.label,
+                                                );
+                                              },
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
+                                                child: Column(
+                                                  children: [
+                                                    Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment.spaceBetween,
+                                                      children: [
+                                                        Expanded(
+                                                          child: Text(e.key,
+                                                              style: const TextStyle(
+                                                                  fontWeight: FontWeight.bold),
+                                                              overflow: TextOverflow.ellipsis),
+                                                        ),
+                                                        Text(CurrencyFormatters.format(e.value),
+                                                            style: const TextStyle(
+                                                                fontWeight: FontWeight.bold)),
+                                                        const SizedBox(width: 4),
+                                                        const Icon(Icons.chevron_right,
+                                                            size: 16, color: Colors.grey),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    LinearProgressIndicator(
+                                                      value: (catPercent / 100).clamp(0.0, 1.0),
+                                                      backgroundColor: Colors.grey[200],
+                                                      color: AppTheme.primaryColor,
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }),
+                                      ],
                                     ),
                             ),
                           );

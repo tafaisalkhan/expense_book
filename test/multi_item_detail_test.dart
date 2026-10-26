@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_classification.dart';
+import 'package:myexpence/features/expenses/domain/models/recurring_expense.dart';
 import 'package:myexpence/features/expenses/presentation/screens/multi_item_detail_screen.dart';
 
 void main() {
@@ -82,6 +83,42 @@ void main() {
       expect(reqLine.classification, equals(ExpenseClassification.required));
       expect(optLine.classification, equals(ExpenseClassification.optional));
       expect(lostLine.classification, equals(ExpenseClassification.lost));
+    });
+
+    test('MultiItemLine supports recurring settings and displays recurring tag', () {
+      const recurringMonthly = MultiItemLine(
+        name: 'Tuition Fee',
+        subcategoryId: 'sub_tuition',
+        amount: 5000,
+        isRecurring: true,
+        recurrenceFrequency: RecurrenceFrequency.monthly,
+      );
+      expect(recurringMonthly.isRecurring, isTrue);
+      expect(recurringMonthly.recurrenceFrequency, RecurrenceFrequency.monthly);
+      expect(recurringMonthly.displayName, contains('• 🔁 Monthly'));
+
+      const recurringDaily = MultiItemLine(
+        name: 'Fresh Milk',
+        subcategoryId: 'sub_milk',
+        amount: 220,
+        isRecurring: true,
+        recurrenceFrequency: RecurrenceFrequency.daily,
+      );
+      expect(recurringDaily.isRecurring, isTrue);
+      expect(recurringDaily.recurrenceFrequency, RecurrenceFrequency.daily);
+      expect(recurringDaily.displayName, contains('• 🔁 Daily'));
+
+      const recurringInterval = MultiItemLine(
+        name: 'Water Gallon',
+        subcategoryId: 'sub_water',
+        amount: 150,
+        isRecurring: true,
+        recurrenceFrequency: RecurrenceFrequency.everyNDays,
+        intervalDays: 3,
+      );
+      expect(recurringInterval.isRecurring, isTrue);
+      expect(recurringInterval.intervalDays, 3);
+      expect(recurringInterval.displayName, contains('• 🔁 Every 3 d'));
     });
   });
 

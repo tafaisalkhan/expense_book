@@ -7,6 +7,7 @@ import 'package:myexpence/core/utils/currency_formatters.dart';
 import 'package:myexpence/core/utils/math_evaluator.dart';
 import 'package:myexpence/features/categories/domain/models/category.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_classification.dart';
+import 'package:myexpence/features/expenses/domain/models/recurring_expense.dart';
 import 'package:myexpence/features/people/domain/models/person.dart';
 import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
 
@@ -21,6 +22,9 @@ class MultiItemLine {
   final ExpenseClassification classification;
   final String? personId;
   final String? personName;
+  final bool isRecurring;
+  final RecurrenceFrequency recurrenceFrequency;
+  final int intervalDays;
 
   const MultiItemLine({
     required this.name,
@@ -31,6 +35,9 @@ class MultiItemLine {
     this.classification = ExpenseClassification.required,
     this.personId,
     this.personName,
+    this.isRecurring = false,
+    this.recurrenceFrequency = RecurrenceFrequency.monthly,
+    this.intervalDays = 1,
   });
 
   String get displayName {
@@ -50,6 +57,14 @@ class MultiItemLine {
 
     if (personName != null && personName!.trim().isNotEmpty) {
       base = '$base • for ${personName!.trim()}';
+    }
+    if (isRecurring) {
+      final freqLabel = recurrenceFrequency == RecurrenceFrequency.daily
+          ? 'Daily'
+          : (recurrenceFrequency == RecurrenceFrequency.everyNDays
+              ? 'Every $intervalDays d'
+              : 'Monthly');
+      base = '$base • 🔁 $freqLabel';
     }
     return base;
   }
@@ -195,6 +210,9 @@ class _ItemEntry {
   ExpenseClassification classification;
   String? personId;
   String? personName;
+  bool isRecurring;
+  RecurrenceFrequency recurrenceFrequency;
+  int intervalDays;
 
   _ItemEntry({
     required this.name,
@@ -206,6 +224,9 @@ class _ItemEntry {
     this.classification = ExpenseClassification.required,
     this.personId,
     this.personName,
+    this.isRecurring = false,
+    this.recurrenceFrequency = RecurrenceFrequency.monthly,
+    this.intervalDays = 1,
   }) {
     if (initialAmount != null && initialAmount > 0) {
       totalController.text = _formatNum(initialAmount);
@@ -338,6 +359,9 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
           classification: line.classification,
           personId: line.personId,
           personName: line.personName,
+          isRecurring: line.isRecurring,
+          recurrenceFrequency: line.recurrenceFrequency,
+          intervalDays: line.intervalDays,
         );
         _items.insert(0, entry);
       } else {
@@ -345,6 +369,9 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
         entry.classification = line.classification;
         entry.personId = line.personId;
         entry.personName = line.personName;
+        entry.isRecurring = line.isRecurring;
+        entry.recurrenceFrequency = line.recurrenceFrequency;
+        entry.intervalDays = line.intervalDays;
         if (line.amount > 0) {
           entry.totalController.text = _formatNum(line.amount);
         }
@@ -680,6 +707,9 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
         classification: i.classification,
         personId: i.personId,
         personName: i.personName,
+        isRecurring: i.isRecurring,
+        recurrenceFrequency: i.recurrenceFrequency,
+        intervalDays: i.intervalDays,
       );
     }).toList();
 
@@ -1340,6 +1370,115 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                 },
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          // Row 5: Recurring Expense
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: item.isRecurring
+                  ? Colors.blue.withValues(alpha: 0.08)
+                  : Colors.grey.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: item.isRecurring
+                    ? Colors.blue.withValues(alpha: 0.3)
+                    : Colors.grey.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.repeat,
+                          size: 16,
+                          color: item.isRecurring ? Colors.blue : Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Recurring Expense',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    Transform.scale(
+                      scale: 0.75,
+                      child: Switch(
+                        value: item.isRecurring,
+                        onChanged: (val) {
+                          setState(() {
+                            item.isRecurring = val;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                if (item.isRecurring) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<RecurrenceFrequency>(
+                          initialValue: item.recurrenceFrequency,
+                          decoration: const InputDecoration(
+                            labelText: 'Repeat',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                            contentPadding:
+                                EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: RecurrenceFrequency.daily,
+                              child: Text('Every day', style: TextStyle(fontSize: 12)),
+                            ),
+                            DropdownMenuItem(
+                              value: RecurrenceFrequency.everyNDays,
+                              child: Text('Every number of days', style: TextStyle(fontSize: 12)),
+                            ),
+                            DropdownMenuItem(
+                              value: RecurrenceFrequency.monthly,
+                              child: Text('Every month', style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                          onChanged: (freq) {
+                            if (freq != null) {
+                              setState(() => item.recurrenceFrequency = freq);
+                            }
+                          },
+                        ),
+                      ),
+                      if (item.recurrenceFrequency == RecurrenceFrequency.everyNDays) ...[
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 80,
+                          child: TextFormField(
+                            initialValue: item.intervalDays.toString(),
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Days',
+                              isDense: true,
+                              border: OutlineInputBorder(),
+                              contentPadding:
+                                  EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            ),
+                            style: const TextStyle(fontSize: 12),
+                            onChanged: (v) {
+                              item.intervalDays = int.tryParse(v) ?? 1;
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),

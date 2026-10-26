@@ -759,7 +759,7 @@ class MoreScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.info_outline, color: Colors.grey),
                   title: const Text('MyExpense Version'),
-                  subtitle: const Text('1.3.4+39 (Subcategories & Smart Math Ready)'),
+                  subtitle: const Text('1.3.6+41 (Subcategory Details & Member Reports)'),
                 ),
               ],
             ),

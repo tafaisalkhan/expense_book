@@ -9,7 +9,6 @@ import 'package:myexpence/features/categories/domain/models/category.dart';
 import 'package:myexpence/features/categories/presentation/providers/category_providers.dart';
 import 'package:myexpence/features/expenses/domain/models/expense.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_classification.dart';
-import 'package:myexpence/features/expenses/domain/models/payment_method.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_allocation.dart';
 import 'package:myexpence/features/expenses/domain/models/recurring_expense.dart';
 import 'package:myexpence/core/providers/core_providers.dart';
@@ -48,11 +47,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   TimeOfDay? _selectedTime;
   Category? _selectedCategory;
   Subcategory? _selectedSubcategory;
-  Person? _selectedPerson; // null = Household
-  ExpenseClassification _classification = ExpenseClassification.required;
   PaymentMethod _paymentMethod = PaymentMethod.cash;
-  final Map<String, double> _memberShares = {};
-  bool _splitByPercentage = true;
   bool _isRecurring = false;
   RecurrenceFrequency _recurrenceFrequency = RecurrenceFrequency.monthly;
   int _intervalDays = 2;
@@ -63,8 +58,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   /// separate expense under its own subcategory.
   List<MultiItemLine> _multiItems = [];
 
-  bool get _isMultiItemMode =>
-      widget.expenseToEdit == null && _multiItems.isNotEmpty;
+  bool get _isMultiItemMode => _multiItems.isNotEmpty;
 
   double get _multiItemsTotal =>
       _multiItems.fold(0.0, (sum, i) => sum + i.amount);
@@ -79,15 +73,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _merchantController.text = e.merchant ?? '';
       _descriptionController.text = e.description ?? '';
       _notesController.text = e.notes ?? '';
-      _classification = e.classification;
       _paymentMethod = e.paymentMethod;
       _isRecurring = e.recurringOccurrenceId != null;
       _voiceNotePath = e.voiceNotePath;
       _voiceNoteBase64 = e.voiceNoteBase64;
       _voiceDurationSeconds = e.voiceDurationSeconds;
-      for (final allocation in e.allocations) {
-        _memberShares[allocation.personId] = allocation.percentage;
-      }
       try {
         _selectedDate = DateFormatters.parseDateIso(e.expenseDate);
       } catch (_) {}
@@ -119,11 +109,37 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       }
     }
 
+    String? personName;
     if (e.personId != null) {
       final pIndex = people.indexWhere((p) => p.uuid == e.personId);
       if (pIndex != -1) {
-        _selectedPerson = people[pIndex];
+        personName = people[pIndex].name;
       }
+    }
+
+    // If editing an existing expense under a category that has subcategories,
+    // populate _multiItems with the current expense line so the multi-subcategory
+    // breakdown is shown and editable.
+    if (_multiItems.isEmpty &&
+        _selectedCategory != null &&
+        _selectedCategory!.subcategories.isNotEmpty) {
+      String subName = _selectedSubcategory?.name ?? '';
+      if (subName.isEmpty && e.description != null && e.description!.isNotEmpty) {
+        subName = e.description!;
+      }
+      if (subName.isEmpty) {
+        subName = _selectedCategory!.name;
+      }
+      _multiItems = [
+        MultiItemLine(
+          name: subName,
+          subcategoryId: e.subcategoryId,
+          amount: e.amount,
+          classification: e.classification,
+          personId: e.personId,
+          personName: personName,
+        ),
+      ];
     }
   }
 
@@ -141,9 +157,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _selectedCategory = cat;
       _selectedSubcategory = null;
       _multiItems = [];
-      if (cat != null) {
-        _classification = cat.defaultClassification;
-      }
     });
     // For any category with subcategories: open the multi-item popup automatically (new expenses only)
     if (widget.expenseToEdit == null && cat != null && cat.subcategories.isNotEmpty) {
@@ -327,15 +340,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   /// Subcategories auto-created during the current multi-item save.
   final List<Subcategory> _createdSubs = [];
 
-  void _onSubcategoryChanged(Subcategory? sub) {
-    setState(() {
-      _selectedSubcategory = sub;
-      if (sub != null) {
-        _classification = sub.defaultClassification;
-      }
-    });
-  }
-
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCategory == null) {
@@ -350,9 +354,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _amountController.text = MathEvaluator.format(evalAmt);
     }
     final amount = double.tryParse(_amountController.text) ?? 0.0;
-    final people = ref.read(peopleListProvider).valueOrNull ?? [];
-    final allocations = _buildAllocations(amount, people);
-    if (allocations == null) return;
     final isEdit = widget.expenseToEdit != null;
     final nowStr = DateTime.now().toIso8601String();
     final dateIso = DateFormatters.formatDateIso(_selectedDate);
@@ -373,19 +374,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         );
         return;
       }
-      await _saveMultiItems(allocations, dateIso, timeStr, nowStr);
+      await _saveMultiItems(dateIso, timeStr, nowStr);
       return;
     }
 
     final expense = Expense(
+      id: widget.expenseToEdit?.id,
       uuid: _expenseUuid,
       amount: amount,
       categoryId: _selectedCategory!.id,
       subcategoryId: _selectedSubcategory?.id,
-      personId: allocations.isEmpty
-          ? _selectedPerson?.uuid
-          : (allocations.length == 1 ? allocations.first.personId : null),
-      classification: _classification,
+      personId: null,
+      classification: widget.expenseToEdit?.classification ??
+          _selectedCategory?.defaultClassification ??
+          ExpenseClassification.required,
       expenseDate: dateIso,
       expenseTime: timeStr,
       createdAt: isEdit ? widget.expenseToEdit!.createdAt : nowStr,
@@ -403,7 +405,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       receiptId: isEdit ? widget.expenseToEdit!.receiptId : null,
       status: isEdit ? widget.expenseToEdit!.status : ExpenseStatus.paid,
       currency: CurrencyFormatters.defaultCurrency,
-      allocations: allocations,
+      allocations: const [],
       voiceNotePath: _voiceNotePath,
       voiceNoteBase64: _voiceNoteBase64,
       voiceDurationSeconds: _voiceDurationSeconds,
@@ -441,7 +443,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   /// subcategory, own amount). Shared fields (date, person, payment, notes)
   /// are copied to each row; the voice note is attached to the first row.
   Future<void> _saveMultiItems(
-    List<ExpenseAllocation> allocations,
     String dateIso,
     String? timeStr,
     String nowStr,
@@ -449,12 +450,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     final notifier = ref.read(expenseNotifierProvider.notifier);
     final merchant = _merchantController.text.trim();
     final notes = _notesController.text.trim();
+    final isEdit = widget.expenseToEdit != null;
     var first = true;
 
     for (final item in _multiItems) {
       final subId = await _ensureSubcategoryId(item);
-      // If the item itself has an assigned family member, allocate 100% to that member.
-      // Otherwise, scale overall member allocations to this item's amount.
       final List<ExpenseAllocation> itemAllocations = item.personId != null
           ? [
               ExpenseAllocation(
@@ -464,22 +464,12 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                 amount: item.amount,
               )
             ]
-          : allocations
-              .map((a) => ExpenseAllocation(
-                    personId: a.personId,
-                    personName: a.personName,
-                    percentage: a.percentage,
-                    amount: item.amount * a.percentage / 100,
-                  ))
-              .toList();
+          : const [];
 
-      final String? assignedPersonId = item.personId ??
-          (itemAllocations.isEmpty
-              ? _selectedPerson?.uuid
-              : (itemAllocations.length == 1 ? itemAllocations.first.personId : null));
+      final String? assignedPersonId = item.personId;
 
       final expense = Expense(
-        uuid: first ? _expenseUuid : const Uuid().v4(),
+        uuid: first && isEdit ? widget.expenseToEdit!.uuid : (first ? _expenseUuid : const Uuid().v4()),
         amount: item.amount,
         categoryId: _selectedCategory!.id,
         subcategoryId: subId,
@@ -487,26 +477,38 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         classification: item.classification,
         expenseDate: dateIso,
         expenseTime: timeStr,
-        createdAt: nowStr,
+        createdAt: first && isEdit ? widget.expenseToEdit!.createdAt : nowStr,
         updatedAt: nowStr,
         merchant: merchant.isNotEmpty ? merchant : null,
         description: item.displayName,
         paymentMethod: _paymentMethod,
         currency: CurrencyFormatters.defaultCurrency,
         notes: notes.isNotEmpty ? notes : null,
-        status: ExpenseStatus.paid,
+        receiptId: first && isEdit ? widget.expenseToEdit!.receiptId : null,
+        status: first && isEdit ? widget.expenseToEdit!.status : ExpenseStatus.paid,
         allocations: itemAllocations,
         voiceNotePath: first ? _voiceNotePath : null,
         voiceNoteBase64: first ? _voiceNoteBase64 : null,
         voiceDurationSeconds: first ? _voiceDurationSeconds : null,
       );
-      await notifier.addExpense(expense);
 
-      if (_isRecurring) {
+      if (first && isEdit) {
+        await notifier.updateExpense(expense);
+      } else {
+        await notifier.addExpense(expense);
+      }
+
+      if (_isRecurring || item.isRecurring) {
         await ref.read(recurringExpenseServiceProvider).saveSchedule(
               template: expense,
-              frequency: _recurrenceFrequency,
-              intervalDays: _intervalDays,
+              frequency: item.isRecurring
+                  ? item.recurrenceFrequency
+                  : _recurrenceFrequency,
+              intervalDays:
+                  item.isRecurring ? item.intervalDays : _intervalDays,
+              existingScheduleId: first && isEdit
+                  ? widget.expenseToEdit?.recurringOccurrenceId?.split(':').first
+                  : null,
             );
       }
       first = false;
@@ -516,43 +518,19 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     final container = ProviderScope.containerOf(context, listen: false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content:
-              Text('${_multiItems.length} items saved as separate expenses!')),
+        content: Text(
+          isEdit
+              ? (_multiItems.length > 1
+                  ? 'Updated expense and created ${_multiItems.length - 1} additional items!'
+                  : 'Expense updated successfully!')
+              : '${_multiItems.length} items saved as separate expenses!',
+        ),
+      ),
     );
     ref.read(adNotifierProvider.notifier).recordNavigation(context);
     context.pop();
     // Refresh categories (new custom subcategories) after leaving this screen
     if (_createdSubs.isNotEmpty) container.invalidate(categoriesListProvider);
-  }
-
-  List<ExpenseAllocation>? _buildAllocations(
-      double total, List<Person> people) {
-    if (_memberShares.isEmpty) return const [];
-    final shareTotal =
-        _memberShares.values.fold<double>(0, (sum, value) => sum + value);
-    final expected = _splitByPercentage ? 100.0 : total;
-    if ((shareTotal - expected).abs() > 0.01) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(_splitByPercentage
-            ? 'Member percentages must total 100%.'
-            : 'Member amounts must total ${CurrencyFormatters.defaultCurrency} ${total.toStringAsFixed(2)}.'),
-      ));
-      return null;
-    }
-    return _memberShares.entries.map((entry) {
-      final person = people.where((p) => p.uuid == entry.key).firstOrNull;
-      final percentage = _splitByPercentage
-          ? entry.value
-          : (total == 0 ? 0.0 : entry.value / total * 100);
-      final allocatedAmount =
-          _splitByPercentage ? total * entry.value / 100 : entry.value;
-      return ExpenseAllocation(
-        personId: entry.key,
-        personName: person?.name ?? 'Family member',
-        percentage: percentage,
-        amount: allocatedAmount,
-      );
-    }).toList();
   }
 
   @override
@@ -565,6 +543,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       categoriesAsync.valueOrNull ?? [],
       peopleAsync.valueOrNull ?? [],
     );
+
+    final bool hasSubcategories =
+        _selectedCategory != null && _selectedCategory!.subcategories.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -744,153 +725,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                             }).toList(),
                             onChanged: _onCategoryChanged,
                           ),
-                          if (widget.expenseToEdit == null &&
-                              _selectedCategory != null &&
-                              _selectedCategory!.subcategories.isNotEmpty) ...[
+                          if (hasSubcategories) ...[
                             const SizedBox(height: 12),
                             _buildMultiItemSection(),
                           ],
-                          if (!_isMultiItemMode &&
-                              _selectedCategory != null &&
-                              _selectedCategory!.subcategories.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            DropdownButtonFormField<Subcategory>(
-                              value: _selectedSubcategory,
-                              decoration: const InputDecoration(
-                                labelText: 'Subcategory',
-                                border: OutlineInputBorder(),
-                              ),
-                              items:
-                                  _selectedCategory!.subcategories.map((sub) {
-                                return DropdownMenuItem<Subcategory>(
-                                  value: sub,
-                                  child: Text(sub.name),
-                                );
-                              }).toList(),
-                              onChanged: _onSubcategoryChanged,
-                            ),
-                          ],
                         ],
                       );
                     },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 4. Person / Household Selector
-                  peopleAsync.when(
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, __) => const SizedBox.shrink(),
-                    data: (people) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Expanded(
-                                child: Text(
-                                  'Family Member / Profile',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              TextButton.icon(
-                                style: TextButton.styleFrom(
-                                    visualDensity: VisualDensity.compact),
-                                onPressed: () async {
-                                  final created =
-                                      await showAddPersonDialog(context, ref);
-                                  if (created != null) {
-                                    setState(() => _selectedPerson = created);
-                                  }
-                                },
-                                icon: const Icon(Icons.person_add, size: 16),
-                                label: const Text('+ Add New Member',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold)),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          DropdownButtonFormField<Person?>(
-                            value: _selectedPerson,
-                            decoration: const InputDecoration(
-                              hintText: 'Select Family Member',
-                              border: OutlineInputBorder(),
-                              helperText:
-                                  'Select General Household if not for a specific person',
-                            ),
-                            items: [
-                              const DropdownMenuItem<Person?>(
-                                value: null,
-                                child: Text('🏠 General Household'),
-                              ),
-                              ...people.map((p) {
-                                return DropdownMenuItem<Person?>(
-                                  value: p,
-                                  child: Text(
-                                      '👤 ${p.name} ${p.relationship != null ? '(${p.relationship})' : ''}'),
-                                );
-                              }),
-                            ],
-                            onChanged: (val) {
-                              setState(() => _selectedPerson = val);
-                            },
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  peopleAsync.when(
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, __) => const SizedBox.shrink(),
-                    data: (people) => _buildAllocationSection(people),
                   ),
                   const SizedBox(height: 20),
 
                   _buildRecurringSection(),
                   const SizedBox(height: 20),
 
-                  // 5. Classification Picker (Urgent / Required / Optional)
-                  const Text('Classification *',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  SegmentedButton<ExpenseClassification>(
-                    segments: const [
-                      ButtonSegment(
-                        value: ExpenseClassification.urgent,
-                        label: Text('Urgent'),
-                        icon: Icon(Icons.priority_high),
-                      ),
-                      ButtonSegment(
-                        value: ExpenseClassification.required,
-                        label: Text('Required'),
-                        icon: Icon(Icons.lock_clock),
-                      ),
-                      ButtonSegment(
-                        value: ExpenseClassification.optional,
-                        label: Text('Optional'),
-                        icon: Icon(Icons.local_activity),
-                      ),
-                      ButtonSegment(
-                        value: ExpenseClassification.lost,
-                        label: Text('Lost'),
-                        icon: Icon(Icons.money_off),
-                      ),
-                    ],
-                    selected: {_classification},
-                    onSelectionChanged: (set) {
-                      setState(() => _classification = set.first);
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 6. Payment Method
+                  // Payment Method
                   DropdownButtonFormField<PaymentMethod>(
                     value: _paymentMethod,
                     decoration: const InputDecoration(
@@ -1022,61 +870,69 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               'Select multiple items above, or pick a single subcategory below.',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
-          ..._multiItems.map((item) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  children: [
-                    const Icon(Icons.check_circle, size: 16, color: Colors.green),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item.displayName, style: const TextStyle(fontWeight: FontWeight.w500)),
-                          const SizedBox(height: 2),
-                          Row(
+          ..._multiItems.map((item) => Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: _openMultiItemPicker,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: _getClassificationColor(item.classification).withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  item.classification.label,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: _getClassificationColor(item.classification),
+                              Text(item.displayName, style: const TextStyle(fontWeight: FontWeight.w500)),
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: _getClassificationColor(item.classification).withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      item.classification.label,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: _getClassificationColor(item.classification),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  if (item.personName != null && item.personName!.isNotEmpty) ...[
+                                    const SizedBox(width: 6),
+                                    Icon(Icons.person, size: 11, color: Colors.grey.shade600),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      item.personName!,
+                                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                                    ),
+                                  ],
+                                ],
                               ),
-                              if (item.personName != null && item.personName!.isNotEmpty) ...[
-                                const SizedBox(width: 6),
-                                Icon(Icons.person, size: 11, color: Colors.grey.shade600),
-                                const SizedBox(width: 2),
-                                Text(
-                                  item.personName!,
-                                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-                                ),
-                              ],
                             ],
                           ),
-                        ],
-                      ),
+                        ),
+                        Text('${CurrencyFormatters.defaultCurrency} ${fmt(item.amount)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.close, size: 16),
+                          tooltip: 'Remove',
+                          onPressed: () => setState(() {
+                            _multiItems = [..._multiItems]..remove(item);
+                            _amountController.text =
+                                _multiItems.isEmpty ? '' : fmt(_multiItemsTotal);
+                          }),
+                        ),
+                      ],
                     ),
-                    Text('${CurrencyFormatters.defaultCurrency} ${fmt(item.amount)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.close, size: 16),
-                      onPressed: () => setState(() {
-                        _multiItems = [..._multiItems]..remove(item);
-                        _amountController.text =
-                            _multiItems.isEmpty ? '' : fmt(_multiItemsTotal);
-                      }),
-                    ),
-                  ],
+                  ),
                 ),
               )),
           if (_multiItems.isNotEmpty) ...[
@@ -1101,65 +957,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           ],
         ],
       ),
-    );
-  }
-
-  Widget _buildAllocationSection(List<Person> people) {
-    return ExpansionTile(
-      tilePadding: EdgeInsets.zero,
-      title: const Text('Split between family members',
-          style: TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text(_memberShares.isEmpty
-          ? 'Optional'
-          : '${_memberShares.length} members selected'),
-      children: [
-        SegmentedButton<bool>(
-          segments: const [
-            ButtonSegment(value: true, label: Text('Percentage')),
-            ButtonSegment(value: false, label: Text('Amount')),
-          ],
-          selected: {_splitByPercentage},
-          onSelectionChanged: (value) => setState(() {
-            _splitByPercentage = value.first;
-            _memberShares.clear();
-          }),
-        ),
-        const SizedBox(height: 8),
-        ...people.map((person) {
-          final selected = _memberShares.containsKey(person.uuid);
-          return Row(
-            children: [
-              Checkbox(
-                value: selected,
-                onChanged: (checked) => setState(() {
-                  if (checked == true) {
-                    _memberShares[person.uuid] = 0;
-                  } else {
-                    _memberShares.remove(person.uuid);
-                  }
-                }),
-              ),
-              Expanded(child: Text(person.name)),
-              if (selected)
-                SizedBox(
-                  width: 110,
-                  child: TextFormField(
-                    initialValue:
-                        _memberShares[person.uuid]?.toStringAsFixed(2),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(
-                      suffixText: _splitByPercentage ? '%' : CurrencyFormatters.defaultCurrency,
-                      isDense: true,
-                    ),
-                    onChanged: (value) => _memberShares[person.uuid] =
-                        double.tryParse(value) ?? 0,
-                  ),
-                ),
-            ],
-          );
-        }),
-      ],
     );
   }
 

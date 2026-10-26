@@ -10,6 +10,7 @@ import 'package:myexpence/core/theme/app_theme.dart';
 import 'package:myexpence/features/ads/presentation/providers/ad_providers.dart';
 import 'package:myexpence/core/utils/currency_formatters.dart';
 import 'package:myexpence/core/utils/date_formatters.dart';
+import 'package:myexpence/features/expenses/presentation/widgets/category_expense_detail_sheet.dart';
 import 'package:myexpence/features/expenses/presentation/widgets/voice_note_player_bottom_sheet.dart';
 import 'package:myexpence/features/auth/domain/models/auth_user.dart';
 import 'package:myexpence/features/auth/presentation/providers/auth_providers.dart';
@@ -521,16 +522,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   // --- 4. Chart 2: Category & Subcategory Breakdown Donut Chart ---
   Widget _buildCategoryBreakdownCard(
       BuildContext context, DashboardData data, Map<String, Category> categoryMap) {
+    final subNameMap = <String, String>{};
+    for (final cat in categoryMap.values) {
+      for (final sub in cat.subcategories) {
+        subNameMap[sub.id] = sub.name;
+        if (sub.uuid != null) subNameMap[sub.uuid!] = sub.name;
+      }
+    }
+
     final List<MapEntry<String, double>> entries;
     if (_showSubcategoriesInChart) {
-      final subNameMap = <String, String>{};
-      for (final cat in categoryMap.values) {
-        for (final sub in cat.subcategories) {
-          subNameMap[sub.id] = sub.name;
-          if (sub.uuid != null) subNameMap[sub.uuid!] = sub.name;
-        }
-      }
-
       final subcategoryTotals = <String, double>{};
       for (final exp in data.periodExpenses) {
         if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) continue;
@@ -552,6 +553,62 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     } else {
       entries = data.categoryBreakdown.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
+    }
+
+    void openDetailForEntry(MapEntry<String, double> entry) {
+      final List<Expense> matching;
+      final displayName = _showSubcategoriesInChart
+          ? entry.key
+          : (categoryMap[entry.key]?.name ?? entry.key);
+
+      if (_showSubcategoriesInChart) {
+        matching = data.periodExpenses.where((exp) {
+          if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) return false;
+          final subId = exp.subcategoryId;
+          String name;
+          if (subId != null && subNameMap.containsKey(subId)) {
+            name = subNameMap[subId]!;
+          } else if (subId != null && subId.trim().isNotEmpty) {
+            name = subId;
+          } else {
+            final catName = categoryMap[exp.categoryId]?.name ?? exp.categoryId;
+            name = '$catName (General)';
+          }
+          return name == entry.key;
+        }).toList();
+      } else {
+        matching = data.periodExpenses.where((exp) {
+          if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) return false;
+          if (exp.categoryId == entry.key) return true;
+          final catName = categoryMap[exp.categoryId]?.name;
+          return catName == entry.key;
+        }).toList();
+      }
+
+      showCategoryExpenseDetailSheet(
+        context: context,
+        ref: ref,
+        title: displayName,
+        isSubcategory: _showSubcategoriesInChart,
+        totalAmount: entry.value,
+        expenses: matching,
+        categoryMap: categoryMap,
+        timeframeLabel: _getTimeframeLabel(data.selectedTimeframe),
+      );
+    }
+
+    void openAllBreakdown() {
+      showAllBreakdownSheet(
+        context: context,
+        ref: ref,
+        isSubcategory: _showSubcategoriesInChart,
+        entries: entries,
+        totalAmount: data.periodTotal,
+        allPeriodExpenses: data.periodExpenses,
+        categoryMap: categoryMap,
+        subNameMap: subNameMap,
+        timeframeLabel: _getTimeframeLabel(data.selectedTimeframe),
+      );
     }
 
     final total = data.periodTotal > 0 ? data.periodTotal : 1.0;
@@ -673,6 +730,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         pieTouchData: PieTouchData(
                           touchCallback:
                               (FlTouchEvent event, pieTouchResponse) {
+                            if (event is FlTapUpEvent &&
+                                pieTouchResponse != null &&
+                                pieTouchResponse.touchedSection != null) {
+                              final idx = pieTouchResponse
+                                  .touchedSection!.touchedSectionIndex;
+                              if (idx >= 0 && idx < entries.length) {
+                                openDetailForEntry(entries[idx]);
+                              }
+                            }
                             setState(() {
                               if (!event.isInterestedForInteractions ||
                                   pieTouchResponse == null ||
@@ -697,50 +763,92 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Expanded(
                   flex: 6,
                   child: Column(
-                    children: List.generate(
-                      entries.length > 5 ? 5 : entries.length,
-                      (i) {
-                        final displayName = _showSubcategoriesInChart
-                            ? entries[i].key
-                            : (categoryMap[entries[i].key]?.name ??
-                                entries[i].key);
-                        final amt = entries[i].value;
-                        final color = colors[i % colors.length];
+                    children: [
+                      ...List.generate(
+                        entries.length > 5 ? 5 : entries.length,
+                        (i) {
+                          final displayName = _showSubcategoriesInChart
+                              ? entries[i].key
+                              : (categoryMap[entries[i].key]?.name ??
+                                  entries[i].key);
+                          final amt = entries[i].value;
+                          final color = colors[i % colors.length];
 
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(6),
+                              onTap: () => openDetailForEntry(entries[i]),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 4, horizontal: 2),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: color,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        displayName,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500),
+                                      ),
+                                    ),
+                                    Text(
+                                      CurrencyFormatters.format(amt),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 2),
+                                    const Icon(Icons.chevron_right,
+                                        size: 14, color: Colors.grey),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  displayName,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500),
-                                ),
-                              ),
-                              Text(
-                                CurrencyFormatters.format(amt),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                            ),
+                          );
+                        },
+                      ),
+                      if (entries.length > 5) ...[
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton.icon(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 4, vertical: 2),
+                            ),
+                            icon: const Icon(Icons.list_alt, size: 14),
+                            label: Text(
+                              'View Complete Breakdown (${entries.length})',
+                              style: const TextStyle(
+                                  fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                            onPressed: openAllBreakdown,
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      ] else ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '(Tap slice or item for details)',
+                          style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey.shade600,
+                              fontStyle: FontStyle.italic),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
