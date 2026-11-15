@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_classification.dart';
+import 'package:myexpence/features/expenses/domain/models/expense_allocation.dart';
 import 'package:myexpence/features/expenses/domain/models/recurring_expense.dart';
 import 'package:myexpence/features/expenses/presentation/screens/multi_item_detail_screen.dart';
 
@@ -53,7 +54,24 @@ void main() {
       expect(line.personId, equals('person_ahmed'));
     });
 
-    test('MultiItemLine supports all 4 classifications (urgent, required, optional, lost)', () {
+    test('displayName shows a multi-member split', () {
+      const line = MultiItemLine(
+        name: 'Groceries',
+        subcategoryId: 'sub_groceries',
+        amount: 1000,
+        allocations: [
+          ExpenseAllocation(
+              personId: 'a', personName: 'A', percentage: 60, amount: 600),
+          ExpenseAllocation(
+              personId: 'b', personName: 'B', percentage: 40, amount: 400),
+        ],
+      );
+      expect(line.displayName, contains('split between 2 members'));
+    });
+
+    test(
+        'MultiItemLine supports all 4 classifications (urgent, required, optional, lost)',
+        () {
       const urgentLine = MultiItemLine(
         name: 'Medicine',
         subcategoryId: null,
@@ -85,7 +103,8 @@ void main() {
       expect(lostLine.classification, equals(ExpenseClassification.lost));
     });
 
-    test('MultiItemLine supports recurring settings and displays recurring tag', () {
+    test('MultiItemLine supports recurring settings and displays recurring tag',
+        () {
       const recurringMonthly = MultiItemLine(
         name: 'Tuition Fee',
         subcategoryId: 'sub_tuition',
@@ -160,6 +179,37 @@ void main() {
       );
       expect(res.items.length, equals(1));
       expect(res.targetTotal, equals(1500.0));
+    });
+  });
+
+  group('Family split calculations', () {
+    const shares = [
+      ExpenseAllocation(
+          personId: 'a', personName: 'A', percentage: 33.33, amount: 0),
+      ExpenseAllocation(
+          personId: 'b', personName: 'B', percentage: 33.33, amount: 0),
+      ExpenseAllocation(
+          personId: 'c', personName: 'C', percentage: 33.34, amount: 0),
+    ];
+
+    test('percentage shares sum to the expense amount after rounding', () {
+      final result = ExpenseAllocation.resolve(shares, 100,
+          byPercentage: true)!;
+      expect(result.map((a) => a.amount).toList(), [33.33, 33.33, 33.34]);
+      expect(result.fold<double>(0, (sum, a) => sum + a.amount), 100);
+    });
+
+    test('rejects incomplete amount and percentage splits', () {
+      expect(ExpenseAllocation.resolve(shares, 100, byPercentage: false),
+          isNull);
+      expect(
+        ExpenseAllocation.resolve(
+          [shares.first, shares.last],
+          100,
+          byPercentage: true,
+        ),
+        isNull,
+      );
     });
   });
 }

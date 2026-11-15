@@ -220,23 +220,21 @@ class SqliteExpenseRepository implements IExpenseRepository {
     required String startDate,
     required String endDate,
   }) async {
-    final db = await appDatabase.database;
-
-    final result = await db.rawQuery('''
-      SELECT personId, SUM(amount) as total
-      FROM expenses
-      WHERE expenseDate >= ? AND expenseDate <= ? AND isDeleted = 0 AND status IN ('PAID', 'APPROVED')
-      GROUP BY personId
-      ORDER BY total DESC
-    ''', [startDate, endDate]);
-
     final Map<String, double> map = {};
-    for (final row in result) {
-      final personId = (row['personId'] as String?) ?? 'household';
-      final total = (row['total'] as num).toDouble();
-      map[personId] = total;
+    final expenses =
+        await getExpensesForPeriod(startDate: startDate, endDate: endDate);
+    for (final expense in expenses) {
+      if (expense.status != ExpenseStatus.paid &&
+          expense.status != ExpenseStatus.approved) continue;
+      if (expense.allocations.isNotEmpty) {
+        for (final share in expense.allocations) {
+          map[share.personId] = (map[share.personId] ?? 0) + share.amount;
+        }
+      } else {
+        final personId = expense.personId ?? 'household';
+        map[personId] = (map[personId] ?? 0) + expense.amount;
+      }
     }
-
     return map;
   }
 

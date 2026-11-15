@@ -34,6 +34,7 @@ Future<void> showCategoryExpenseDetailSheet({
   required List<Expense> expenses,
   required Map<String, Category> categoryMap,
   String? timeframeLabel,
+  String? personId,
 }) async {
   // Sort with latest date first
   final sortedExpenses = List<Expense>.from(expenses)
@@ -72,10 +73,13 @@ Future<void> showCategoryExpenseDetailSheet({
                 Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
                       foregroundColor: Theme.of(context).colorScheme.primary,
                       child: Icon(
-                        isSubcategory ? Icons.subdirectory_arrow_right : Icons.category,
+                        isSubcategory
+                            ? Icons.subdirectory_arrow_right
+                            : Icons.category,
                         size: 20,
                       ),
                     ),
@@ -96,9 +100,13 @@ Future<void> showCategoryExpenseDetailSheet({
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
@@ -106,15 +114,19 @@ Future<void> showCategoryExpenseDetailSheet({
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                   ),
                                 ),
                               ),
-                              if (timeframeLabel != null && timeframeLabel.isNotEmpty) ...[
+                              if (timeframeLabel != null &&
+                                  timeframeLabel.isNotEmpty) ...[
                                 const SizedBox(width: 6),
                                 Text(
                                   timeframeLabel,
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600),
                                 ),
                               ],
                             ],
@@ -131,12 +143,19 @@ Future<void> showCategoryExpenseDetailSheet({
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primaryContainer
+                        .withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -147,11 +166,13 @@ Future<void> showCategoryExpenseDetailSheet({
                         children: [
                           const Text(
                             'Total Spend',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.w500),
                           ),
                           Text(
                             '${sortedExpenses.length} transaction${sortedExpenses.length == 1 ? '' : 's'}',
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey.shade600),
                           ),
                         ],
                       ),
@@ -191,8 +212,10 @@ Future<void> showCategoryExpenseDetailSheet({
                           itemBuilder: (context, idx) {
                             final exp = sortedExpenses[idx];
                             final category = categoryMap[exp.categoryId];
-                            final iconData = CategoryIconHelper.getIconData(category?.icon);
-                            final classificationColor = _getClassificationColor(exp.classification);
+                            final iconData =
+                                CategoryIconHelper.getIconData(category?.icon);
+                            final classificationColor =
+                                _getClassificationColor(exp.classification);
 
                             String itemTitle = exp.description?.trim() ?? '';
                             if (itemTitle.isEmpty) {
@@ -207,14 +230,18 @@ Future<void> showCategoryExpenseDetailSheet({
                             );
 
                             return ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 4, vertical: 2),
                               leading: CircleAvatar(
-                                backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .secondaryContainer,
                                 child: Icon(iconData, size: 20),
                               ),
                               title: Text(
                                 itemTitle,
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600, fontSize: 14),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -227,12 +254,16 @@ Future<void> showCategoryExpenseDetailSheet({
                                   children: [
                                     Text(
                                       dateStr,
-                                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey.shade700),
                                     ),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 5, vertical: 1),
                                       decoration: BoxDecoration(
-                                        color: classificationColor.withValues(alpha: 0.12),
+                                        color: classificationColor.withValues(
+                                            alpha: 0.12),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
@@ -244,16 +275,23 @@ Future<void> showCategoryExpenseDetailSheet({
                                         ),
                                       ),
                                     ),
-                                    if (exp.allocations.isNotEmpty &&
-                                        exp.allocations.first.personName.trim().isNotEmpty) ...[
+                                    if (personId == null &&
+                                        exp.allocations.isNotEmpty) ...[
                                       Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(Icons.person, size: 11, color: Colors.grey.shade600),
+                                          Icon(Icons.person,
+                                              size: 11,
+                                              color: Colors.grey.shade600),
                                           const SizedBox(width: 2),
                                           Text(
-                                            exp.allocations.first.personName.trim(),
-                                            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                                            exp.allocations.length == 1
+                                                ? exp.allocations.first.personName
+                                                    .trim()
+                                                : 'Split among ${exp.allocations.length} members',
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                color: Colors.grey.shade600),
                                           ),
                                         ],
                                       ),
@@ -265,19 +303,22 @@ Future<void> showCategoryExpenseDetailSheet({
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    '${CurrencyFormatters.defaultCurrency} ${CurrencyFormatters.format(exp.amount)}',
+                                    '${CurrencyFormatters.defaultCurrency} ${CurrencyFormatters.format(personId == null ? exp.amount : exp.amountForPerson(personId))}',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13,
                                     ),
                                   ),
                                   const SizedBox(width: 4),
-                                  const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                                  const Icon(Icons.chevron_right,
+                                      size: 16, color: Colors.grey),
                                 ],
                               ),
                               onTap: () {
                                 Navigator.pop(ctx);
-                                ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                                ref
+                                    .read(adNotifierProvider.notifier)
+                                    .recordNavigation(context);
                                 context.push('/add', extra: exp);
                               },
                             );
@@ -354,9 +395,12 @@ Future<void> showAllBreakdownSheet({
                 Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
                       foregroundColor: Theme.of(context).colorScheme.primary,
-                      child: Icon(isSubcategory ? Icons.view_list : Icons.pie_chart, size: 20),
+                      child: Icon(
+                          isSubcategory ? Icons.view_list : Icons.pie_chart,
+                          size: 20),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -364,8 +408,11 @@ Future<void> showAllBreakdownSheet({
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            isSubcategory ? 'All Subcategories' : 'All Categories',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            isSubcategory
+                                ? 'All Subcategories'
+                                : 'All Categories',
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                           Row(
                             children: [
@@ -377,11 +424,14 @@ Future<void> showAllBreakdownSheet({
                                   color: Theme.of(context).colorScheme.primary,
                                 ),
                               ),
-                              if (timeframeLabel != null && timeframeLabel.isNotEmpty) ...[
+                              if (timeframeLabel != null &&
+                                  timeframeLabel.isNotEmpty) ...[
                                 const SizedBox(width: 6),
                                 Text(
                                   '• $timeframeLabel',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600),
                                 ),
                               ],
                             ],
@@ -398,19 +448,27 @@ Future<void> showAllBreakdownSheet({
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primaryContainer
+                        .withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Total Period Spending',
-                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 13)),
                       Text(
                         '${CurrencyFormatters.defaultCurrency} ${CurrencyFormatters.format(totalAmount)}',
                         style: TextStyle(
@@ -460,28 +518,36 @@ Future<void> showAllBreakdownSheet({
                                 final List<Expense> matching;
                                 if (isSubcategory) {
                                   matching = allPeriodExpenses.where((exp) {
-                                    if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) {
+                                    if (exp.isDeleted ||
+                                        exp.status == ExpenseStatus.cancelled) {
                                       return false;
                                     }
                                     final subId = exp.subcategoryId;
                                     String name;
-                                    if (subId != null && subNameMap.containsKey(subId)) {
+                                    if (subId != null &&
+                                        subNameMap.containsKey(subId)) {
                                       name = subNameMap[subId]!;
-                                    } else if (subId != null && subId.trim().isNotEmpty) {
+                                    } else if (subId != null &&
+                                        subId.trim().isNotEmpty) {
                                       name = subId;
                                     } else {
-                                      final catName = categoryMap[exp.categoryId]?.name ?? exp.categoryId;
+                                      final catName =
+                                          categoryMap[exp.categoryId]?.name ??
+                                              exp.categoryId;
                                       name = '$catName (General)';
                                     }
                                     return name == entry.key;
                                   }).toList();
                                 } else {
                                   matching = allPeriodExpenses.where((exp) {
-                                    if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) {
+                                    if (exp.isDeleted ||
+                                        exp.status == ExpenseStatus.cancelled) {
                                       return false;
                                     }
-                                    if (exp.categoryId == entry.key) return true;
-                                    final catName = categoryMap[exp.categoryId]?.name;
+                                    if (exp.categoryId == entry.key)
+                                      return true;
+                                    final catName =
+                                        categoryMap[exp.categoryId]?.name;
                                     return catName == entry.key;
                                   }).toList();
                                 }
@@ -499,7 +565,8 @@ Future<void> showAllBreakdownSheet({
                                 );
                               },
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 8),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -510,7 +577,8 @@ Future<void> showAllBreakdownSheet({
                                           height: 22,
                                           alignment: Alignment.center,
                                           decoration: BoxDecoration(
-                                            color: color.withValues(alpha: 0.15),
+                                            color:
+                                                color.withValues(alpha: 0.15),
                                             shape: BoxShape.circle,
                                           ),
                                           child: Text(
@@ -534,7 +602,8 @@ Future<void> showAllBreakdownSheet({
                                           ),
                                         ),
                                         Column(
-                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
                                           children: [
                                             Text(
                                               '${CurrencyFormatters.defaultCurrency} ${CurrencyFormatters.format(amt)}',
@@ -554,7 +623,8 @@ Future<void> showAllBreakdownSheet({
                                           ],
                                         ),
                                         const SizedBox(width: 4),
-                                        const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                                        const Icon(Icons.chevron_right,
+                                            size: 16, color: Colors.grey),
                                       ],
                                     ),
                                     const SizedBox(height: 6),
@@ -563,7 +633,9 @@ Future<void> showAllBreakdownSheet({
                                       child: LinearProgressIndicator(
                                         value: (pct / 100).clamp(0.0, 1.0),
                                         backgroundColor: Colors.grey.shade200,
-                                        valueColor: AlwaysStoppedAnimation<Color>(color),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                color),
                                         minHeight: 5,
                                       ),
                                     ),

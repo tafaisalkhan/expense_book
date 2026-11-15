@@ -8,6 +8,7 @@ import 'package:myexpence/core/utils/date_formatters.dart';
 import 'package:myexpence/core/utils/category_icon_helper.dart';
 import 'package:myexpence/features/categories/presentation/providers/category_providers.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_classification.dart';
+import 'package:myexpence/features/expenses/domain/models/expense_detail_fields.dart';
 import 'package:myexpence/features/expenses/presentation/providers/expense_providers.dart';
 import 'package:myexpence/features/expenses/presentation/widgets/voice_note_player_bottom_sheet.dart';
 import 'package:myexpence/features/settings/presentation/providers/settings_providers.dart';
@@ -185,21 +186,19 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                                     ),
                                     const Divider(),
                                     ...categoriesList.map((c) => ListTile(
-                                          leading:
-                                              CategoryIconHelper.buildCategoryAvatar(
+                                          leading: CategoryIconHelper
+                                              .buildCategoryAvatar(
                                             iconName: c.icon,
                                             categoryId: c.id,
                                             size: 20,
                                           ),
                                           title: Text(c.name),
-                                          selected:
-                                              _selectedCategoryId == c.id,
+                                          selected: _selectedCategoryId == c.id,
                                           trailing: _selectedCategoryId == c.id
                                               ? const Icon(Icons.check,
                                                   color: AppTheme.primaryColor)
                                               : null,
-                                          onTap: () =>
-                                              Navigator.pop(ctx, c.id),
+                                          onTap: () => Navigator.pop(ctx, c.id),
                                         )),
                                   ],
                                 ),
@@ -279,9 +278,8 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
             data: (expenses) {
               var count = expenses;
               if (_selectedDate != null) {
-                count = count
-                    .where((e) => e.expenseDate == _selectedDate)
-                    .toList();
+                count =
+                    count.where((e) => e.expenseDate == _selectedDate).toList();
               }
               if (_selectedClassification != null) {
                 count = count
@@ -436,7 +434,9 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
 
                     return ListTile(
                       onTap: () {
-                        ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                        ref
+                            .read(adNotifierProvider.notifier)
+                            .recordNavigation(context);
                         context.push('/add', extra: item);
                       },
                       leading: CategoryIconHelper.buildCategoryAvatar(
@@ -449,19 +449,40 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                             : fullCategoryDisplay,
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      subtitle: Row(
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              '${item.merchant?.isNotEmpty == true ? '$fullCategoryDisplay • ' : ''}${DateFormatters.formatDateDisplay(DateFormatters.parseDateIso(item.expenseDate))} • ${item.paymentMethod.label}',
-                              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${item.merchant?.isNotEmpty == true ? '$fullCategoryDisplay • ' : ''}${DateFormatters.formatDateDisplay(DateFormatters.parseDateIso(item.expenseDate))} • ${item.paymentMethod.label}',
+                                  style: TextStyle(
+                                      fontSize: 12, color: Colors.grey[700]),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (item.hasVoiceNote) ...[
+                                const SizedBox(width: 4),
+                                const Icon(Icons.mic,
+                                    size: 14, color: AppTheme.primaryColor),
+                              ],
+                              if (item.receiptId != null)
+                                const Icon(Icons.attach_file,
+                                    size: 14, color: AppTheme.primaryColor),
+                            ],
                           ),
-                          if (item.hasVoiceNote) ...[
-                            const SizedBox(width: 4),
-                            const Icon(Icons.mic, size: 14, color: AppTheme.primaryColor),
-                          ],
+                          if (expenseDetailsSummary(item.categoryId,
+                                  item.subcategoryId, item.details)
+                              .isNotEmpty)
+                            Text(
+                              expenseDetailsSummary(item.categoryId,
+                                  item.subcategoryId, item.details),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey[700]),
+                            ),
                         ],
                       ),
                       trailing: Row(
@@ -502,7 +523,9 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                               if (action == 'voice') {
                                 showVoiceNoteBottomSheet(context, ref, item);
                               } else if (action == 'edit') {
-                                ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                                ref
+                                    .read(adNotifierProvider.notifier)
+                                    .recordNavigation(context);
                                 context.push('/add', extra: item);
                               } else if (action == 'delete') {
                                 final confirm = await showDialog<bool>(
@@ -538,7 +561,8 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('Expense deleted successfully'),
+                                        content: Text(
+                                            'Expense deleted successfully'),
                                         backgroundColor: Colors.red,
                                         duration: Duration(seconds: 2),
                                       ),
@@ -554,7 +578,8 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                                   child: Row(
                                     children: [
                                       Icon(Icons.volume_up,
-                                          size: 18, color: AppTheme.primaryColor),
+                                          size: 18,
+                                          color: AppTheme.primaryColor),
                                       SizedBox(width: 10),
                                       Text('Play Voice Note'),
                                     ],

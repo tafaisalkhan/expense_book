@@ -29,6 +29,7 @@ class Expense {
   final ExpenseStatus status;
   final bool isDeleted;
   final List<ExpenseAllocation> allocations;
+  final Map<String, dynamic> details;
   final String? voiceNotePath;
   final String? voiceNoteBase64;
   final int? voiceDurationSeconds;
@@ -36,6 +37,20 @@ class Expense {
   bool get hasVoiceNote =>
       (voiceNotePath != null && voiceNotePath!.isNotEmpty) ||
       (voiceNoteBase64 != null && voiceNoteBase64!.isNotEmpty);
+
+  double amountForPerson(String personKey) {
+    if (allocations.isNotEmpty) {
+      return allocations
+          .where((allocation) => allocation.personId == personKey)
+          .fold<double>(0, (total, allocation) => total + allocation.amount);
+    }
+    if (personKey == 'household') {
+      return personId == null || personId!.isEmpty || personId == 'household'
+          ? amount
+          : 0;
+    }
+    return personId == personKey ? amount : 0;
+  }
 
   const Expense({
     this.id,
@@ -60,6 +75,7 @@ class Expense {
     this.status = ExpenseStatus.paid,
     this.isDeleted = false,
     this.allocations = const [],
+    this.details = const {},
     this.voiceNotePath,
     this.voiceNoteBase64,
     this.voiceDurationSeconds,
@@ -88,6 +104,7 @@ class Expense {
     ExpenseStatus? status,
     bool? isDeleted,
     List<ExpenseAllocation>? allocations,
+    Map<String, dynamic>? details,
     String? voiceNotePath,
     String? voiceNoteBase64,
     int? voiceDurationSeconds,
@@ -116,6 +133,7 @@ class Expense {
       status: status ?? this.status,
       isDeleted: isDeleted ?? this.isDeleted,
       allocations: allocations ?? this.allocations,
+      details: details ?? this.details,
       voiceNotePath: voiceNotePath ?? this.voiceNotePath,
       voiceNoteBase64: voiceNoteBase64 ?? this.voiceNoteBase64,
       voiceDurationSeconds: voiceDurationSeconds ?? this.voiceDurationSeconds,
@@ -146,6 +164,7 @@ class Expense {
       'status': status.code,
       'isDeleted': isDeleted ? 1 : 0,
       'allocationsJson': jsonEncode(allocations.map((a) => a.toMap()).toList()),
+      'detailsJson': jsonEncode(details),
       'voiceNotePath': voiceNotePath,
       'voiceNoteBase64': voiceNoteBase64,
       'voiceDurationSeconds': voiceDurationSeconds,
@@ -178,6 +197,7 @@ class Expense {
       status: ExpenseStatus.fromCode((map['status'] as String?) ?? 'PAID'),
       isDeleted: (map['isDeleted'] as int) == 1,
       allocations: _allocationsFromJson(map['allocationsJson'] as String?),
+      details: _detailsFromJson(map['detailsJson'] as String?),
       voiceNotePath: map['voiceNotePath'] as String?,
       voiceNoteBase64: map['voiceNoteBase64'] as String?,
       voiceDurationSeconds: map['voiceDurationSeconds'] as int?,
@@ -193,6 +213,15 @@ class Expense {
           .toList();
     } catch (_) {
       return const [];
+    }
+  }
+
+  static Map<String, dynamic> _detailsFromJson(String? value) {
+    if (value == null || value.isEmpty) return const {};
+    try {
+      return Map<String, dynamic>.from(jsonDecode(value) as Map);
+    } catch (_) {
+      return const {};
     }
   }
 }

@@ -5,7 +5,7 @@ import 'package:myexpence/core/database/database_migrations.dart';
 
 class AppDatabase {
   static const String _dbName = 'myexpense.db';
-  static const int _dbVersion = 5;
+  static const int _dbVersion = 6;
 
   static final AppDatabase _instance = AppDatabase._internal();
   factory AppDatabase() => _instance;

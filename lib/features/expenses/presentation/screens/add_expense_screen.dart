@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,13 +13,15 @@ import 'package:myexpence/features/categories/presentation/providers/category_pr
 import 'package:myexpence/features/expenses/domain/models/expense.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_classification.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_allocation.dart';
-import 'package:myexpence/features/expenses/domain/models/recurring_expense.dart';
 import 'package:myexpence/core/providers/core_providers.dart';
 import 'package:myexpence/core/utils/currency_formatters.dart';
 import 'package:myexpence/features/expenses/presentation/providers/expense_providers.dart';
 import 'package:myexpence/features/people/domain/models/person.dart';
 import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
 import 'package:uuid/uuid.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+import 'package:myexpence/features/receipts/domain/models/receipt.dart';
 import 'package:myexpence/core/utils/math_evaluator.dart';
 import 'package:myexpence/features/expenses/presentation/widgets/expense_voice_note_widget.dart';
 import 'package:myexpence/features/expenses/presentation/widgets/multi_item_picker_sheet.dart';
@@ -37,6 +42,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _merchantController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _notesController = TextEditingController();
+  String? _pendingReceiptPath;
+  bool _removeReceipt = false;
 
   late final String _expenseUuid;
   String? _voiceNotePath;
@@ -48,9 +55,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   Category? _selectedCategory;
   Subcategory? _selectedSubcategory;
   PaymentMethod _paymentMethod = PaymentMethod.cash;
-  bool _isRecurring = false;
-  RecurrenceFrequency _recurrenceFrequency = RecurrenceFrequency.monthly;
-  int _intervalDays = 2;
 
   bool _initializedEditFields = false;
 
@@ -74,7 +78,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _descriptionController.text = e.description ?? '';
       _notesController.text = e.notes ?? '';
       _paymentMethod = e.paymentMethod;
-      _isRecurring = e.recurringOccurrenceId != null;
       _voiceNotePath = e.voiceNotePath;
       _voiceNoteBase64 = e.voiceNoteBase64;
       _voiceDurationSeconds = e.voiceDurationSeconds;
@@ -124,7 +127,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         _selectedCategory != null &&
         _selectedCategory!.subcategories.isNotEmpty) {
       String subName = _selectedSubcategory?.name ?? '';
-      if (subName.isEmpty && e.description != null && e.description!.isNotEmpty) {
+      if (subName.isEmpty &&
+          e.description != null &&
+          e.description!.isNotEmpty) {
         subName = e.description!;
       }
       if (subName.isEmpty) {
@@ -135,9 +140,13 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           name: subName,
           subcategoryId: e.subcategoryId,
           amount: e.amount,
+          quantity: e.details['quantity']?.toString(),
+          unitPrice: double.tryParse(e.details['unitPrice']?.toString() ?? ''),
+          details: Map<String, dynamic>.from(e.details),
           classification: e.classification,
           personId: e.personId,
           personName: personName,
+          allocations: e.allocations,
         ),
       ];
     }
@@ -159,8 +168,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _multiItems = [];
     });
     // For any category with subcategories: open the multi-item popup automatically (new expenses only)
-    if (widget.expenseToEdit == null && cat != null && cat.subcategories.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _openMultiItemPicker());
+    if (widget.expenseToEdit == null &&
+        cat != null &&
+        cat.subcategories.isNotEmpty) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _openMultiItemPicker());
     }
   }
 
@@ -176,7 +188,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       context,
       category: cat,
       initial: _multiItems,
-      targetTotal: currentAmount != null && currentAmount > 0 ? currentAmount : null,
+      targetTotal:
+          currentAmount != null && currentAmount > 0 ? currentAmount : null,
     );
     if (result == null || !mounted) return;
     setState(() {
@@ -184,12 +197,14 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       if (result.items.isNotEmpty) {
         _selectedSubcategory = null;
         final t = _multiItemsTotal;
-        _amountController.text =
-            t == t.roundToDouble() ? t.toStringAsFixed(0) : t.toStringAsFixed(2);
+        _amountController.text = t == t.roundToDouble()
+            ? t.toStringAsFixed(0)
+            : t.toStringAsFixed(2);
       } else if (result.targetTotal != null && result.targetTotal! > 0) {
         final t = result.targetTotal!;
-        _amountController.text =
-            t == t.roundToDouble() ? t.toStringAsFixed(0) : t.toStringAsFixed(2);
+        _amountController.text = t == t.roundToDouble()
+            ? t.toStringAsFixed(0)
+            : t.toStringAsFixed(2);
       }
     });
   }
@@ -243,35 +258,38 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     }
   }
 
-  void _insertMathChar(String char) {
+  void _pressAmountKey(String char) {
     final text = _amountController.text;
-    final selection = _amountController.selection;
     if (char == '=') {
       final evaluated = MathEvaluator.tryEvaluate(text);
-      if (evaluated != null) {
+      if (evaluated != null && evaluated > 0) {
         setState(() {
           _amountController.text = MathEvaluator.format(evaluated);
-          _amountController.selection =
-              TextSelection.collapsed(offset: _amountController.text.length);
         });
       }
       return;
     }
 
-    String newText;
-    int newOffset;
-    if (selection.isValid && selection.start >= 0 && selection.end <= text.length) {
-      newText = text.replaceRange(selection.start, selection.end, char);
-      newOffset = selection.start + char.length;
+    if (char == 'delete') {
+      if (text.isEmpty) return;
+      _amountController.text = text.substring(0, text.length - 1);
+    } else if (char == '+' || char == '-') {
+      if (text.isEmpty) return;
+      if (text.endsWith('+') || text.endsWith('-')) {
+        _amountController.text = '${text.substring(0, text.length - 1)}$char';
+      } else if (!text.endsWith('.')) {
+        _amountController.text = '$text$char';
+      }
+    } else if (char == '.') {
+      final currentNumber = text.split(RegExp(r'[+-]')).last;
+      if (currentNumber.contains('.')) return;
+      _amountController.text = '$text${currentNumber.isEmpty ? '0' : ''}.';
     } else {
-      newText = '$text$char';
-      newOffset = newText.length;
+      _amountController.text = '$text$char';
     }
-
-    setState(() {
-      _amountController.text = newText;
-      _amountController.selection = TextSelection.collapsed(offset: newOffset);
-    });
+    _amountController.selection =
+        TextSelection.collapsed(offset: _amountController.text.length);
+    setState(() {});
   }
 
   String? _getAmountHelperText() {
@@ -280,33 +298,68 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     if (MathEvaluator.hasOperator(text)) {
       final eval = MathEvaluator.tryEvaluate(text);
       if (eval != null) {
-        return '= ${CurrencyFormatters.defaultCurrency} ${MathEvaluator.format(eval)} (tap = to apply)';
+        return '= ${CurrencyFormatters.defaultCurrency} ${MathEvaluator.format(eval)}';
       }
     }
     return null;
   }
 
-  Widget _buildMathChip(String label, {bool isAction = false}) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(6),
-      onTap: () => _insertMathChar(label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: isAction
-              ? Colors.green.withValues(alpha: 0.15)
-              : Colors.grey.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: isAction ? Colors.green : Colors.grey.withValues(alpha: 0.3),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-            color: isAction ? Colors.green.shade800 : null,
+  void _showAmountKeypad() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _amountController,
+                builder: (context, value, _) => Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '${CurrencyFormatters.defaultCurrency} ${value.text.isEmpty ? '0' : value.text}',
+                    style: const TextStyle(
+                        fontSize: 28, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              for (final row in const [
+                ['7', '8', '9', 'delete'],
+                ['4', '5', '6', '+'],
+                ['1', '2', '3', '-'],
+                ['.', '0', '=', 'Done'],
+              ])
+                Row(
+                  children: [
+                    for (final key in row)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(3),
+                          child: OutlinedButton(
+                            onPressed: () {
+                              if (key == 'Done') {
+                                _pressAmountKey('=');
+                                Navigator.pop(sheetContext);
+                              } else {
+                                _pressAmountKey(key);
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              child: key == 'delete'
+                                  ? const Icon(Icons.backspace_outlined)
+                                  : Text(key,
+                                      style: const TextStyle(fontSize: 22)),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+            ],
           ),
         ),
       ),
@@ -319,12 +372,13 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     final cat = _selectedCategory!;
     if (line.subcategoryId != null) return line.subcategoryId!;
     final existing = [...cat.subcategories, ..._createdSubs]
-        .where((s) => s.name.trim().toLowerCase() == line.name.trim().toLowerCase())
+        .where((s) =>
+            s.name.trim().toLowerCase() == line.name.trim().toLowerCase())
         .firstOrNull;
     if (existing != null) return existing.id;
 
-    final maxSort = [...cat.subcategories, ..._createdSubs].fold<int>(
-        0, (m, s) => s.sortOrder > m ? s.sortOrder : m);
+    final maxSort = [...cat.subcategories, ..._createdSubs]
+        .fold<int>(0, (m, s) => s.sortOrder > m ? s.sortOrder : m);
     final sub = Subcategory(
       id: 'sub_custom_${const Uuid().v4()}',
       categoryId: cat.id,
@@ -339,6 +393,43 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   /// Subcategories auto-created during the current multi-item save.
   final List<Subcategory> _createdSubs = [];
+
+  Future<void> _pickReceipt() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+    );
+    if (!mounted || result == null || result.files.single.path == null) return;
+    setState(() {
+      _pendingReceiptPath = result.files.single.path;
+      _removeReceipt = false;
+    });
+  }
+
+  Future<String?> _savePendingReceipt(String dateIso, String nowStr) async {
+    final sourcePath = _pendingReceiptPath;
+    if (sourcePath == null) {
+      return _removeReceipt ? null : widget.expenseToEdit?.receiptId;
+    }
+    final directory = Directory(path.join(
+      (await getApplicationDocumentsDirectory()).path,
+      'receipts',
+    ));
+    await directory.create(recursive: true);
+    final uuid = const Uuid().v4();
+    final destination = path.join(
+      directory.path,
+      '$uuid${path.extension(sourcePath).toLowerCase()}',
+    );
+    await File(sourcePath).copy(destination);
+    final saved = await ref.read(receiptRepositoryProvider).saveReceipt(Receipt(
+          uuid: uuid,
+          imagePath: destination,
+          scanDate: dateIso,
+          createdAt: nowStr,
+        ));
+    return saved.uuid;
+  }
 
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
@@ -361,6 +452,19 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         ? '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}'
         : null;
 
+    String? receiptId;
+    try {
+      receiptId = await _savePendingReceipt(dateIso, nowStr);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not attach receipt: $error')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+
     if (_isMultiItemMode) {
       final diff = (amount - _multiItemsTotal).abs();
       if (diff > 0.01) {
@@ -374,7 +478,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         );
         return;
       }
-      await _saveMultiItems(dateIso, timeStr, nowStr);
+      await _saveMultiItems(dateIso, timeStr, nowStr, receiptId);
       return;
     }
 
@@ -402,10 +506,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       notes: _notesController.text.trim().isNotEmpty
           ? _notesController.text.trim()
           : null,
-      receiptId: isEdit ? widget.expenseToEdit!.receiptId : null,
+      receiptId: receiptId,
       status: isEdit ? widget.expenseToEdit!.status : ExpenseStatus.paid,
       currency: CurrencyFormatters.defaultCurrency,
       allocations: const [],
+      details: widget.expenseToEdit?.details ?? const {},
       voiceNotePath: _voiceNotePath,
       voiceNoteBase64: _voiceNoteBase64,
       voiceDurationSeconds: _voiceDurationSeconds,
@@ -415,16 +520,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       await ref.read(expenseNotifierProvider.notifier).updateExpense(expense);
     } else {
       await ref.read(expenseNotifierProvider.notifier).addExpense(expense);
-    }
-
-    if (_isRecurring) {
-      await ref.read(recurringExpenseServiceProvider).saveSchedule(
-            template: expense,
-            frequency: _recurrenceFrequency,
-            intervalDays: _intervalDays,
-            existingScheduleId:
-                widget.expenseToEdit?.recurringOccurrenceId?.split(':').first,
-          );
     }
 
     if (mounted) {
@@ -440,12 +535,13 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   }
 
   /// Saves every selected grocery item as its own expense row (own
-  /// subcategory, own amount). Shared fields (date, person, payment, notes)
+  /// subcategory, own amount). Shared fields (date, payment, notes)
   /// are copied to each row; the voice note is attached to the first row.
   Future<void> _saveMultiItems(
     String dateIso,
     String? timeStr,
     String nowStr,
+    String? receiptId,
   ) async {
     final notifier = ref.read(expenseNotifierProvider.notifier);
     final merchant = _merchantController.text.trim();
@@ -455,21 +551,27 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
     for (final item in _multiItems) {
       final subId = await _ensureSubcategoryId(item);
-      final List<ExpenseAllocation> itemAllocations = item.personId != null
-          ? [
-              ExpenseAllocation(
-                personId: item.personId!,
-                personName: item.personName ?? 'Member',
-                percentage: 100,
-                amount: item.amount,
-              )
-            ]
-          : const [];
+      final List<ExpenseAllocation> itemAllocations =
+          item.allocations.isNotEmpty
+              ? item.allocations
+              : item.personId != null
+                  ? [
+                      ExpenseAllocation(
+                        personId: item.personId!,
+                        personName: item.personName ?? 'Member',
+                        percentage: 100,
+                        amount: item.amount,
+                      )
+                    ]
+                  : const [];
 
-      final String? assignedPersonId = item.personId;
+      final String? assignedPersonId =
+          itemAllocations.length == 1 ? itemAllocations.first.personId : null;
 
       final expense = Expense(
-        uuid: first && isEdit ? widget.expenseToEdit!.uuid : (first ? _expenseUuid : const Uuid().v4()),
+        uuid: first && isEdit
+            ? widget.expenseToEdit!.uuid
+            : (first ? _expenseUuid : const Uuid().v4()),
         amount: item.amount,
         categoryId: _selectedCategory!.id,
         subcategoryId: subId,
@@ -481,11 +583,13 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         updatedAt: nowStr,
         merchant: merchant.isNotEmpty ? merchant : null,
         description: item.displayName,
+        details: item.details,
         paymentMethod: _paymentMethod,
         currency: CurrencyFormatters.defaultCurrency,
         notes: notes.isNotEmpty ? notes : null,
-        receiptId: first && isEdit ? widget.expenseToEdit!.receiptId : null,
-        status: first && isEdit ? widget.expenseToEdit!.status : ExpenseStatus.paid,
+        receiptId: receiptId,
+        status:
+            first && isEdit ? widget.expenseToEdit!.status : ExpenseStatus.paid,
         allocations: itemAllocations,
         voiceNotePath: first ? _voiceNotePath : null,
         voiceNoteBase64: first ? _voiceNoteBase64 : null,
@@ -498,16 +602,15 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         await notifier.addExpense(expense);
       }
 
-      if (_isRecurring || item.isRecurring) {
+      if (item.isRecurring) {
         await ref.read(recurringExpenseServiceProvider).saveSchedule(
               template: expense,
-              frequency: item.isRecurring
-                  ? item.recurrenceFrequency
-                  : _recurrenceFrequency,
-              intervalDays:
-                  item.isRecurring ? item.intervalDays : _intervalDays,
+              frequency: item.recurrenceFrequency,
+              intervalDays: item.intervalDays,
               existingScheduleId: first && isEdit
-                  ? widget.expenseToEdit?.recurringOccurrenceId?.split(':').first
+                  ? widget.expenseToEdit?.recurringOccurrenceId
+                      ?.split(':')
+                      .first
                   : null,
             );
       }
@@ -544,8 +647,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       peopleAsync.valueOrNull ?? [],
     );
 
-    final bool hasSubcategories =
-        _selectedCategory != null && _selectedCategory!.subcategories.isNotEmpty;
+    final bool hasSubcategories = _selectedCategory != null &&
+        _selectedCategory!.subcategories.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -578,8 +681,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                   // 1. Amount Field
                   TextFormField(
                     controller: _amountController,
-                    readOnly: _isMultiItemMode,
-                    keyboardType: TextInputType.text,
+                    readOnly: true,
+                    showCursor: false,
+                    onTap: _isMultiItemMode ? null : _showAmountKeypad,
                     style: const TextStyle(
                         fontSize: 28, fontWeight: FontWeight.bold),
                     decoration: InputDecoration(
@@ -593,14 +697,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                       helperText: _getAmountHelperText(),
                       helperStyle: const TextStyle(
                           color: Colors.green, fontWeight: FontWeight.bold),
-                      suffixIcon: !_isMultiItemMode &&
-                              MathEvaluator.hasOperator(_amountController.text)
-                          ? IconButton(
-                              icon: const Icon(Icons.calculate, color: Colors.green),
-                              tooltip: 'Calculate Expression',
-                              onPressed: () => _insertMathChar('='),
-                            )
-                          : null,
                     ),
                     onChanged: (_) => setState(() {}),
                     validator: (val) {
@@ -620,25 +716,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                       return null;
                     },
                   ),
-                  if (!_isMultiItemMode) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Text('Quick math:',
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                        const SizedBox(width: 6),
-                        _buildMathChip('+'),
-                        const SizedBox(width: 4),
-                        _buildMathChip('-'),
-                        const SizedBox(width: 4),
-                        _buildMathChip('*'),
-                        const SizedBox(width: 4),
-                        _buildMathChip('/'),
-                        const SizedBox(width: 6),
-                        _buildMathChip('=', isAction: true),
-                      ],
-                    ),
-                  ],
                   const SizedBox(height: 20),
 
                   // 2. Quick Date Buttons (TODAY, YESTERDAY, SELECT DATE)
@@ -735,9 +812,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  _buildRecurringSection(),
-                  const SizedBox(height: 20),
-
                   // Payment Method
                   DropdownButtonFormField<PaymentMethod>(
                     value: _paymentMethod,
@@ -777,6 +851,34 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                     ),
                     maxLines: 2,
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _pickReceipt,
+                          icon: const Icon(Icons.attach_file),
+                          label: Text(_pendingReceiptPath != null
+                              ? path.basename(_pendingReceiptPath!)
+                              : widget.expenseToEdit?.receiptId != null &&
+                                      !_removeReceipt
+                                  ? 'Receipt attached - replace'
+                                  : 'Attach receipt (optional)'),
+                        ),
+                      ),
+                      if (_pendingReceiptPath != null ||
+                          (widget.expenseToEdit?.receiptId != null &&
+                              !_removeReceipt))
+                        IconButton(
+                          tooltip: 'Remove receipt',
+                          onPressed: () => setState(() {
+                            _pendingReceiptPath = null;
+                            _removeReceipt = true;
+                          }),
+                          icon: const Icon(Icons.close),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 20),
 
                   // 8. Voice Note
@@ -785,7 +887,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                     initialVoiceNotePath: _voiceNotePath,
                     initialVoiceNoteBase64: _voiceNoteBase64,
                     initialDurationSeconds: _voiceDurationSeconds,
-                    onVoiceNoteChanged: ({localPath, base64Data, durationSeconds}) {
+                    onVoiceNoteChanged: (
+                        {localPath, base64Data, durationSeconds}) {
                       setState(() {
                         _voiceNotePath = localPath;
                         _voiceNoteBase64 = base64Data;
@@ -848,7 +951,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.playlist_add_check, color: Colors.green, size: 22),
+              const Icon(Icons.playlist_add_check,
+                  color: Colors.green, size: 22),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -860,7 +964,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               ),
               TextButton.icon(
                 onPressed: _openMultiItemPicker,
-                icon: Icon(_multiItems.isEmpty ? Icons.add : Icons.edit, size: 18),
+                icon: Icon(_multiItems.isEmpty ? Icons.add : Icons.edit,
+                    size: 18),
                 label: Text(_multiItems.isEmpty ? 'Select' : 'Edit'),
               ),
             ],
@@ -876,23 +981,30 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                   borderRadius: BorderRadius.circular(8),
                   onTap: _openMultiItemPicker,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
                     child: Row(
                       children: [
-                        const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                        const Icon(Icons.check_circle,
+                            size: 16, color: Colors.green),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(item.displayName, style: const TextStyle(fontWeight: FontWeight.w500)),
+                              Text(item.name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w500)),
                               const SizedBox(height: 2),
                               Row(
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 1),
                                     decoration: BoxDecoration(
-                                      color: _getClassificationColor(item.classification).withValues(alpha: 0.15),
+                                      color: _getClassificationColor(
+                                              item.classification)
+                                          .withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
@@ -900,34 +1012,29 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                       style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
-                                        color: _getClassificationColor(item.classification),
+                                        color: _getClassificationColor(
+                                            item.classification),
                                       ),
                                     ),
                                   ),
-                                  if (item.personName != null && item.personName!.isNotEmpty) ...[
-                                    const SizedBox(width: 6),
-                                    Icon(Icons.person, size: 11, color: Colors.grey.shade600),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      item.personName!,
-                                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-                                    ),
-                                  ],
                                 ],
                               ),
                             ],
                           ),
                         ),
-                        Text('${CurrencyFormatters.defaultCurrency} ${fmt(item.amount)}',
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text(
+                            '${CurrencyFormatters.defaultCurrency} ${fmt(item.amount)}',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
                         IconButton(
                           visualDensity: VisualDensity.compact,
                           icon: const Icon(Icons.close, size: 16),
                           tooltip: 'Remove',
                           onPressed: () => setState(() {
                             _multiItems = [..._multiItems]..remove(item);
-                            _amountController.text =
-                                _multiItems.isEmpty ? '' : fmt(_multiItemsTotal);
+                            _amountController.text = _multiItems.isEmpty
+                                ? ''
+                                : fmt(_multiItemsTotal);
                           }),
                         ),
                       ],
@@ -947,79 +1054,19 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Subcategories Total:',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  Text('${CurrencyFormatters.defaultCurrency} ${fmt(_multiItemsTotal)}',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text(
+                      '${CurrencyFormatters.defaultCurrency} ${fmt(_multiItemsTotal)}',
                       style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 14, color: Colors.green)),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Colors.green)),
                 ],
               ),
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _buildRecurringSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Recurring expense',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text(
-                  'Create pending expenses automatically for your approval'),
-              value: _isRecurring,
-              onChanged: (value) => setState(() => _isRecurring = value),
-            ),
-            if (_isRecurring) ...[
-              DropdownButtonFormField<RecurrenceFrequency>(
-                initialValue: _recurrenceFrequency,
-                decoration: const InputDecoration(
-                    labelText: 'Repeat', border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(
-                      value: RecurrenceFrequency.daily,
-                      child: Text('Every day')),
-                  DropdownMenuItem(
-                      value: RecurrenceFrequency.everyNDays,
-                      child: Text('Every number of days')),
-                  DropdownMenuItem(
-                      value: RecurrenceFrequency.monthly,
-                      child: Text('Every month')),
-                ],
-                onChanged: (value) =>
-                    setState(() => _recurrenceFrequency = value!),
-              ),
-              if (_recurrenceFrequency == RecurrenceFrequency.everyNDays) ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  initialValue: _intervalDays.toString(),
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Repeat every how many days?',
-                    helperText: 'For example: 2 or 3 days',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (!_isRecurring ||
-                        _recurrenceFrequency != RecurrenceFrequency.everyNDays)
-                      return null;
-                    final days = int.tryParse(value ?? '');
-                    return days == null || days < 1
-                        ? 'Enter at least 1 day'
-                        : null;
-                  },
-                  onChanged: (value) =>
-                      _intervalDays = int.tryParse(value) ?? 1,
-                ),
-              ],
-            ],
-          ],
-        ),
       ),
     );
   }

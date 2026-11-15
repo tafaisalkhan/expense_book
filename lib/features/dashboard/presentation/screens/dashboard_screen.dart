@@ -53,7 +53,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final timeframe = ref.watch(dashboardTimeframeProvider);
 
     // Reset pagination to first page whenever timeframe filter changes
-    ref.listen<DashboardTimeframe>(dashboardTimeframeProvider, (previous, next) {
+    ref.listen<DashboardTimeframe>(dashboardTimeframeProvider,
+        (previous, next) {
       if (previous != next) {
         setState(() {
           _currentPage = 0;
@@ -69,12 +70,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Dashboard Analytics', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Dashboard Analytics',
+                style: TextStyle(fontWeight: FontWeight.bold)),
             Text(
               _getTimeframeLabel(timeframe),
               style: TextStyle(
                 fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.6),
                 fontWeight: FontWeight.normal,
               ),
             ),
@@ -186,7 +191,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+        color: Theme.of(context)
+            .colorScheme
+            .primaryContainer
+            .withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
@@ -200,7 +208,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               (user.displayName?.isNotEmpty ?? false)
                   ? user.displayName![0].toUpperCase()
                   : 'U',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(width: 12),
@@ -210,13 +219,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               children: [
                 Text(
                   'Welcome back, ${user.displayName ?? "User"}!',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 15),
                 ),
                 Text(
                   user.email ?? 'Synced Account',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -230,7 +243,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
             child: const Text(
               'Online',
-              style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -244,7 +260,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -286,7 +305,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     fontSize: 13,
                     color: isSelected
                         ? Colors.white
-                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        : Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.7),
                   ),
                 ),
               ),
@@ -323,7 +345,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -346,15 +371,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   if (data.previousPeriodTotal > 0)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: isIncrease ? Colors.red.shade400 : Colors.green.shade400,
+                        color: isIncrease
+                            ? Colors.red.shade400
+                            : Colors.green.shade400,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            isIncrease ? Icons.trending_up : Icons.trending_down,
+                            isIncrease
+                                ? Icons.trending_up
+                                : Icons.trending_down,
                             size: 14,
                             color: Colors.white,
                           ),
@@ -385,9 +415,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildSubKpiText('Daily Avg', CurrencyFormatters.format(data.averagePerDay)),
+                  _buildSubKpiText('Daily Avg',
+                      CurrencyFormatters.format(data.averagePerDay)),
                   _buildSubKpiText('Top Cat', data.topCategoryName),
-                  _buildSubKpiText('Today', CurrencyFormatters.format(data.todayTotal)),
+                  _buildSubKpiText(
+                      'Today', CurrencyFormatters.format(data.todayTotal)),
                 ],
               ),
             ],
@@ -401,7 +433,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+        Text(title,
+            style: const TextStyle(color: Colors.white60, fontSize: 11)),
         const SizedBox(height: 2),
         Text(
           val,
@@ -419,9 +452,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _buildSpendingTrendCard(BuildContext context, DashboardData data) {
     if (data.trendPoints.isEmpty) return const SizedBox.shrink();
 
-    final spots = data.trendPoints.map((tp) => FlSpot(tp.x, tp.amount)).toList();
-    final maxY = data.trendPoints.fold<double>(
-            0.0, (max, tp) => tp.amount > max ? tp.amount : max) *
+    final spots =
+        data.trendPoints.map((tp) => FlSpot(tp.x, tp.amount)).toList();
+    final maxY = data.trendPoints
+            .fold<double>(0.0, (max, tp) => tp.amount > max ? tp.amount : max) *
         1.2;
 
     return Card(
@@ -439,7 +473,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   'Spending Trend',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-                Icon(Icons.show_chart, color: Theme.of(context).colorScheme.primary),
+                Icon(Icons.show_chart,
+                    color: Theme.of(context).colorScheme.primary),
               ],
             ),
             const SizedBox(height: 20),
@@ -456,17 +491,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                   ),
                   titlesData: FlTitlesData(
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 40,
                         getTitlesWidget: (val, meta) {
-                          if (val == 0 || val == meta.max) return const SizedBox.shrink();
+                          if (val == 0 || val == meta.max)
+                            return const SizedBox.shrink();
                           return Text(
-                            val >= 1000 ? '${(val / 1000).toStringAsFixed(0)}k' : '${val.toInt()}',
-                            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                            val >= 1000
+                                ? '${(val / 1000).toStringAsFixed(0)}k'
+                                : '${val.toInt()}',
+                            style: TextStyle(
+                                fontSize: 10, color: Colors.grey.shade600),
                           );
                         },
                       ),
@@ -474,7 +515,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        interval: (data.trendPoints.length / 6).clamp(1.0, 10.0),
+                        interval:
+                            (data.trendPoints.length / 6).clamp(1.0, 10.0),
                         getTitlesWidget: (val, meta) {
                           final idx = val.toInt();
                           if (idx >= 0 && idx < data.trendPoints.length) {
@@ -482,7 +524,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               padding: const EdgeInsets.only(top: 8.0),
                               child: Text(
                                 data.trendPoints[idx].label,
-                                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                                style: TextStyle(
+                                    fontSize: 10, color: Colors.grey.shade600),
                               ),
                             );
                           }
@@ -506,7 +549,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       dotData: const FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.15),
                       ),
                     ),
                   ],
@@ -520,8 +566,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // --- 4. Chart 2: Category & Subcategory Breakdown Donut Chart ---
-  Widget _buildCategoryBreakdownCard(
-      BuildContext context, DashboardData data, Map<String, Category> categoryMap) {
+  Widget _buildCategoryBreakdownCard(BuildContext context, DashboardData data,
+      Map<String, Category> categoryMap) {
     final subNameMap = <String, String>{};
     for (final cat in categoryMap.values) {
       for (final sub in cat.subcategories) {
@@ -563,7 +609,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
       if (_showSubcategoriesInChart) {
         matching = data.periodExpenses.where((exp) {
-          if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) return false;
+          if (exp.isDeleted || exp.status == ExpenseStatus.cancelled)
+            return false;
           final subId = exp.subcategoryId;
           String name;
           if (subId != null && subNameMap.containsKey(subId)) {
@@ -578,7 +625,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         }).toList();
       } else {
         matching = data.periodExpenses.where((exp) {
-          if (exp.isDeleted || exp.status == ExpenseStatus.cancelled) return false;
+          if (exp.isDeleted || exp.status == ExpenseStatus.cancelled)
+            return false;
           if (exp.categoryId == entry.key) return true;
           final catName = categoryMap[exp.categoryId]?.name;
           return catName == entry.key;
@@ -860,11 +908,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // --- 5. Chart 3: Classification Bar Chart ---
-  Widget _buildClassificationBarChartCard(BuildContext context, DashboardData data) {
-    final requiredAmt = data.classificationBreakdown[ExpenseClassification.required] ?? 0.0;
-    final urgentAmt = data.classificationBreakdown[ExpenseClassification.urgent] ?? 0.0;
-    final optionalAmt = data.classificationBreakdown[ExpenseClassification.optional] ?? 0.0;
-    final lostAmt = data.classificationBreakdown[ExpenseClassification.lost] ?? 0.0;
+  Widget _buildClassificationBarChartCard(
+      BuildContext context, DashboardData data) {
+    final requiredAmt =
+        data.classificationBreakdown[ExpenseClassification.required] ?? 0.0;
+    final urgentAmt =
+        data.classificationBreakdown[ExpenseClassification.urgent] ?? 0.0;
+    final optionalAmt =
+        data.classificationBreakdown[ExpenseClassification.optional] ?? 0.0;
+    final lostAmt =
+        data.classificationBreakdown[ExpenseClassification.lost] ?? 0.0;
 
     final maxVal = [requiredAmt, urgentAmt, optionalAmt, lostAmt]
             .fold<double>(0, (m, v) => v > m ? v : m) *
@@ -892,9 +945,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   barTouchData: BarTouchData(enabled: true),
                   titlesData: FlTitlesData(
                     show: true,
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
@@ -903,22 +959,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             case 0:
                               return const Padding(
                                 padding: EdgeInsets.only(top: 6),
-                                child: Text('Required', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                child: Text('Required',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold)),
                               );
                             case 1:
                               return const Padding(
                                 padding: EdgeInsets.only(top: 6),
-                                child: Text('Urgent', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                child: Text('Urgent',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold)),
                               );
                             case 2:
                               return const Padding(
                                 padding: EdgeInsets.only(top: 6),
-                                child: Text('Optional', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                child: Text('Optional',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold)),
                               );
                             case 3:
                               return const Padding(
                                 padding: EdgeInsets.only(top: 6),
-                                child: Text('Lost', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                child: Text('Lost',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold)),
                               );
                             default:
                               return const SizedBox.shrink();
@@ -992,7 +1060,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Card(
       color: data.isZeroSpendConfirmedToday
           ? Colors.green.shade50
-          : Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.3),
+          : Theme.of(context)
+              .colorScheme
+              .secondaryContainer
+              .withValues(alpha: 0.3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -1002,7 +1073,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               data.isZeroSpendConfirmedToday
                   ? Icons.check_circle
                   : Icons.star_outline,
-              color: data.isZeroSpendConfirmedToday ? Colors.green : Colors.amber.shade800,
+              color: data.isZeroSpendConfirmedToday
+                  ? Colors.green
+                  : Colors.amber.shade800,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1010,7 +1083,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 data.isZeroSpendConfirmedToday
                     ? 'Awesome! Zero-spend day confirmed for today.'
                     : 'No expenses logged today. Confirm zero spend?',
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
               ),
             ),
             if (!data.isZeroSpendConfirmedToday)
@@ -1029,12 +1103,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // --- 7. Family Section ---
-  Widget _buildFamilySection(
-      BuildContext context, WidgetRef ref, DashboardData data, AsyncValue peopleAsync) {
+  Widget _buildFamilySection(BuildContext context, WidgetRef ref,
+      DashboardData data, AsyncValue peopleAsync) {
     final peopleList = (peopleAsync.valueOrNull as List<Person>?) ?? [];
     final personMap = {for (var p in peopleList) p.uuid: p.name};
     final authUser = ref.watch(authProvider);
-    final defaultUserName = (authUser.displayName?.isNotEmpty == true) ? authUser.displayName! : 'Self';
+    final defaultUserName = (authUser.displayName?.isNotEmpty == true)
+        ? authUser.displayName!
+        : 'Self';
 
     final categoriesList = ref.watch(categoriesListProvider).valueOrNull ?? [];
     final categoryMap = {for (var c in categoriesList) c.id: c};
@@ -1051,20 +1127,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
             Text(
               _getTimeframeLabel(data.selectedTimeframe),
-              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w600),
             ),
           ],
         ),
         const SizedBox(height: 12),
         Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(12.0),
             child: Column(
               children: data.personBreakdown.entries.map((e) {
                 final key = e.key;
                 final String displayName = personMap[key] ??
-                    (key.isEmpty || key == 'household' || key == 'self' || key == authUser.uid
+                    (key.isEmpty ||
+                            key == 'household' ||
+                            key == 'self' ||
+                            key == authUser.uid
                         ? defaultUserName
                         : key);
 
@@ -1081,14 +1164,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   },
                   borderRadius: BorderRadius.circular(12),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 8.0),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 10.0, horizontal: 8.0),
                     child: Row(
                       children: [
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primaryContainer,
                           child: Text(
-                            displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
+                            displayName.isNotEmpty
+                                ? displayName[0].toUpperCase()
+                                : 'U',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
@@ -1103,22 +1190,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             children: [
                               Text(
                                 displayName,
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600, fontSize: 14),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 'Tap to filter & view day/date transactions',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                style: TextStyle(
+                                    fontSize: 11, color: Colors.grey.shade600),
                               ),
                             ],
                           ),
                         ),
                         Text(
                           CurrencyFormatters.format(e.value),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
                         ),
                         const SizedBox(width: 4),
-                        Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade500),
+                        Icon(Icons.chevron_right,
+                            size: 18, color: Colors.grey.shade500),
                       ],
                     ),
                   ),
@@ -1141,10 +1232,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }) {
     // Filter expenses matching this person
     final personExpenses = data.periodExpenses.where((exp) {
-      if (personKey.isEmpty || personKey == 'household' || personKey == 'self') {
-        return exp.personId == null || exp.personId!.isEmpty || exp.personId == 'household' || exp.personId == 'self';
-      }
-      return exp.personId == personKey || exp.allocations.any((a) => a.personId == personKey);
+      return exp.amountForPerson(personKey.isEmpty || personKey == 'self'
+              ? 'household'
+              : personKey) >
+          0;
     }).toList();
 
     showModalBottomSheet(
@@ -1182,8 +1273,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       CircleAvatar(
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         child: Text(
-                          displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          displayName.isNotEmpty
+                              ? displayName[0].toUpperCase()
+                              : 'U',
+                          style: const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1193,11 +1287,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           children: [
                             Text(
                               '$displayName Details',
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold),
                             ),
                             Text(
                               'Timeframe Filter: ${_getTimeframeLabel(data.selectedTimeframe)}',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey.shade600),
                             ),
                           ],
                         ),
@@ -1208,7 +1304,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primaryContainer
+                          .withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -1216,11 +1315,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       children: [
                         Text(
                           'Total Spend (${personExpenses.length} transactions)',
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 13),
                         ),
                         Text(
                           CurrencyFormatters.format(
-                            personExpenses.fold<double>(0.0, (sum, exp) => sum + exp.amount),
+                            personExpenses.fold<double>(
+                                0.0,
+                                (sum, exp) =>
+                                    sum +
+                                    exp.amountForPerson(
+                                      personKey.isEmpty || personKey == 'self'
+                                          ? 'household'
+                                          : personKey,
+                                    )),
                           ),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
@@ -1248,36 +1356,50 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         : ListView.separated(
                             controller: scrollController,
                             itemCount: personExpenses.length,
-                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
                             itemBuilder: (ctx, idx) {
                               final exp = personExpenses[idx];
                               final category = categoryMap[exp.categoryId];
                               final catName = category?.name ?? 'General';
-                              final iconData = CategoryIconHelper.getIconData(category?.icon);
-                              final formattedDayDate = DateFormatters.formatDateDisplay(
+                              final iconData = CategoryIconHelper.getIconData(
+                                  category?.icon);
+                              final formattedDayDate =
+                                  DateFormatters.formatDateDisplay(
                                 DateFormatters.parseDateIso(exp.expenseDate),
                               );
 
                               return ListTile(
                                 onTap: () {
                                   Navigator.pop(ctx);
-                                  ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                                  ref
+                                      .read(adNotifierProvider.notifier)
+                                      .recordNavigation(context);
                                   context.push('/add', extra: exp);
                                 },
                                 leading: CircleAvatar(
-                                  backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .secondaryContainer,
                                   child: Icon(iconData, size: 20),
                                 ),
                                 title: Text(
                                   exp.merchant ?? exp.description ?? 'Expense',
-                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600),
                                 ),
                                 subtitle: Text(
                                   '$formattedDayDate • $catName',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade700),
                                 ),
                                 trailing: Text(
-                                  CurrencyFormatters.format(exp.amount),
+                                  CurrencyFormatters.format(exp.amountForPerson(
+                                    personKey.isEmpty || personKey == 'self'
+                                        ? 'household'
+                                        : personKey,
+                                  )),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: Colors.redAccent,
@@ -1313,7 +1435,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final expenses = (isDay || bucket == null)
         ? data.periodExpenses
         : data.periodExpenses
-            .where((e) => _isInBucket(e.expenseDate, bucket, bucketEnd, isYear, isMonth))
+            .where((e) =>
+                _isInBucket(e.expenseDate, bucket, bucketEnd, isYear, isMonth))
             .toList();
     final totalExpenses = expenses.length;
     final totalPages = (totalExpenses / _pageSize).ceil();
@@ -1323,9 +1446,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _currentPage = totalPages - 1;
     }
 
-    final displayedExpenses = isDay
-        ? expenses
-        : _getPaginatedExpenses(expenses);
+    final displayedExpenses =
+        isDay ? expenses : _getPaginatedExpenses(expenses);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1350,7 +1472,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(12),
@@ -1382,7 +1505,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
         if (expenses.isEmpty)
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.all(24.0),
               child: Center(
@@ -1463,7 +1587,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                       if (expense.hasVoiceNote) ...[
                         const SizedBox(width: 4),
-                        const Icon(Icons.mic, size: 14, color: AppTheme.primaryColor),
+                        const Icon(Icons.mic,
+                            size: 14, color: AppTheme.primaryColor),
                       ],
                     ],
                   ),
@@ -1489,7 +1614,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ],
                   ),
                   onTap: () {
-                    ref.read(adNotifierProvider.notifier).recordNavigation(context);
+                    ref
+                        .read(adNotifierProvider.notifier)
+                        .recordNavigation(context);
                     context.push('/add', extra: expense);
                   },
                 );
@@ -1505,7 +1632,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  bool _isInBucket(String expenseDateIso, DateTime bucket, DateTime? bucketEnd, bool isYear, bool isMonth) {
+  bool _isInBucket(String expenseDateIso, DateTime bucket, DateTime? bucketEnd,
+      bool isYear, bool isMonth) {
     final d = DateTime.tryParse(expenseDateIso);
     if (d == null) return false;
     if (isYear) return d.year == bucket.year && d.month == bucket.month;
@@ -1515,7 +1643,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           d.day >= bucket.day &&
           d.day <= bucketEnd.day;
     }
-    return d.year == bucket.year && d.month == bucket.month && d.day == bucket.day;
+    return d.year == bucket.year &&
+        d.month == bucket.month &&
+        d.day == bucket.day;
   }
 
   bool _isBucketSelected(DateTime date, bool isYear) {
@@ -1527,7 +1657,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   /// Horizontal, tappable strip of days (Week), weeks (Month), or months (Year) with totals.
   /// Tap a chip to see only that period's expenses; tap again (or "All") to clear.
-  Widget _buildBucketSelector(BuildContext context, DashboardData data, bool isYear) {
+  Widget _buildBucketSelector(
+      BuildContext context, DashboardData data, bool isYear) {
     final scheme = Theme.of(context).colorScheme;
     final now = DateTime.now();
     final isMonth = data.selectedTimeframe == DashboardTimeframe.month;
@@ -1605,7 +1736,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final chips = <Widget>[
       chip(
         top: 'All',
-        bottom: isYear ? 'Year' : (data.selectedTimeframe == DashboardTimeframe.week ? 'Week' : 'Month'),
+        bottom: isYear
+            ? 'Year'
+            : (data.selectedTimeframe == DashboardTimeframe.week
+                ? 'Week'
+                : 'Month'),
         amount: CurrencyFormatters.format(data.periodTotal),
         selected: _selectedBucket == null,
         highlight: false,

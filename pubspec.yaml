@@ -2,7 +2,7 @@ name: myexpence
 description: "MyExpense - Intelligent, Offline-First Personal and Family Expense Management Application."
 publish_to: 'none'
 
-version: 1.3.6+41
+version: 1.3.10+45
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -53,4 +53,3 @@ flutter:
 
   assets:
     - assets/config/default_categories.json
-    - assets/config/firebase_service_account.json

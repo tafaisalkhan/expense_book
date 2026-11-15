@@ -456,7 +456,7 @@ class MoreScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.calendar_month, color: AppTheme.primaryColor),
                   title: const Text('Expense Calendar', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: const Text('View daily spending grid, missing days, and zero-spend log'),
+                  subtitle: const Text('View monthly spending as a calendar or sortable bars'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
                     ref.read(adNotifierProvider.notifier).recordNavigation(context);

@@ -75,6 +75,7 @@ class DatabaseMigrations {
         status TEXT NOT NULL DEFAULT 'PAID',
         isDeleted INTEGER NOT NULL DEFAULT 0,
         allocationsJson TEXT NOT NULL DEFAULT '[]',
+        detailsJson TEXT NOT NULL DEFAULT '{}',
         voiceNotePath TEXT,
         voiceNoteBase64 TEXT,
         voiceDurationSeconds INTEGER
@@ -257,7 +258,12 @@ class DatabaseMigrations {
     if (oldVersion < 5) {
       await db.execute('ALTER TABLE expenses ADD COLUMN voiceNotePath TEXT;');
       await db.execute('ALTER TABLE expenses ADD COLUMN voiceNoteBase64 TEXT;');
-      await db.execute('ALTER TABLE expenses ADD COLUMN voiceDurationSeconds INTEGER;');
+      await db.execute(
+          'ALTER TABLE expenses ADD COLUMN voiceDurationSeconds INTEGER;');
+    }
+    if (oldVersion < 6) {
+      await db.execute(
+          "ALTER TABLE expenses ADD COLUMN detailsJson TEXT NOT NULL DEFAULT '{}';");
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:myexpence/core/database/app_database.dart';
 import 'package:myexpence/features/expenses/data/repositories/expense_repository_impl.dart';
 import 'package:myexpence/features/expenses/domain/models/expense.dart';
+import 'package:myexpence/features/expenses/domain/models/expense_allocation.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_classification.dart';
 import 'package:myexpence/features/expenses/domain/models/payment_method.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -45,6 +46,7 @@ void main() {
             status TEXT NOT NULL DEFAULT 'PAID',
             isDeleted INTEGER NOT NULL DEFAULT 0,
             allocationsJson TEXT NOT NULL DEFAULT '[]',
+            detailsJson TEXT NOT NULL DEFAULT '{}',
             voiceNotePath TEXT,
             voiceNoteBase64 TEXT,
             voiceDurationSeconds INTEGER
@@ -156,7 +158,8 @@ void main() {
     expect(recent.length, equals(20));
   });
 
-  test('getSpendingBySubcategory groups spending by subcategory accurately', () async {
+  test('getSpendingBySubcategory groups spending by subcategory accurately',
+      () async {
     const uuidGen = Uuid();
     await repository.addExpense(Expense(
       uuid: uuidGen.v4(),
@@ -198,6 +201,57 @@ void main() {
 
     expect(subSpending['sub_fuel'], equals(2000.0));
     expect(subSpending['sub_parking'], equals(800.0));
+  });
+
+  test('family spending uses each member share once', () async {
+    await repository.addExpense(Expense(
+      uuid: const Uuid().v4(),
+      amount: 1000,
+      categoryId: 'cat_food',
+      subcategoryId: 'sub_groceries',
+      classification: ExpenseClassification.required,
+      expenseDate: '2026-09-25',
+      createdAt: DateTime.now().toIso8601String(),
+      updatedAt: DateTime.now().toIso8601String(),
+      allocations: const [
+        ExpenseAllocation(
+            personId: 'alice',
+            personName: 'Alice',
+            percentage: 60,
+            amount: 600),
+        ExpenseAllocation(
+            personId: 'bob', personName: 'Bob', percentage: 40, amount: 400),
+      ],
+    ));
+
+    final spending = await repository.getSpendingByPerson(
+        startDate: '2026-09-25', endDate: '2026-09-25');
+    expect(spending['alice'], 600);
+    expect(spending['bob'], 400);
+    expect(spending.values.fold<double>(0, (a, b) => a + b), 1000);
+  });
+
+  test('optional category details survive saving and editing', () async {
+    final expense = Expense(
+      uuid: const Uuid().v4(),
+      amount: 2500,
+      categoryId: 'cat_health',
+      subcategoryId: 'sub_hlth_test',
+      classification: ExpenseClassification.required,
+      expenseDate: '2026-09-25',
+      createdAt: DateTime.now().toIso8601String(),
+      updatedAt: DateTime.now().toIso8601String(),
+      details: const {'patient': 'Ali', 'serviceName': 'Blood test'},
+    );
+    await repository.addExpense(expense);
+    final saved = await repository.getExpenseByUuid(expense.uuid);
+    expect(saved?.details['serviceName'], 'Blood test');
+
+    await repository.updateExpense(saved!.copyWith(
+      details: const {'patient': 'Ali', 'serviceName': 'CBC'},
+    ));
+    final updated = await repository.getExpenseByUuid(expense.uuid);
+    expect(updated?.details['serviceName'], 'CBC');
   });
 }
 

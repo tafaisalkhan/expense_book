@@ -7,6 +7,8 @@ import 'package:myexpence/core/utils/currency_formatters.dart';
 import 'package:myexpence/core/utils/math_evaluator.dart';
 import 'package:myexpence/features/categories/domain/models/category.dart';
 import 'package:myexpence/features/expenses/domain/models/expense_classification.dart';
+import 'package:myexpence/features/expenses/domain/models/expense_allocation.dart';
+import 'package:myexpence/features/expenses/domain/models/expense_detail_fields.dart';
 import 'package:myexpence/features/expenses/domain/models/recurring_expense.dart';
 import 'package:myexpence/features/people/domain/models/person.dart';
 import 'package:myexpence/features/people/presentation/providers/people_providers.dart';
@@ -19,9 +21,12 @@ class MultiItemLine {
   final double amount;
   final String? quantity;
   final double? unitPrice;
+  final Map<String, dynamic> details;
   final ExpenseClassification classification;
   final String? personId;
   final String? personName;
+  final List<ExpenseAllocation> allocations;
+  final bool allocationByPercentage;
   final bool isRecurring;
   final RecurrenceFrequency recurrenceFrequency;
   final int intervalDays;
@@ -32,9 +37,12 @@ class MultiItemLine {
     required this.amount,
     this.quantity,
     this.unitPrice,
+    this.details = const {},
     this.classification = ExpenseClassification.required,
     this.personId,
     this.personName,
+    this.allocations = const [],
+    this.allocationByPercentage = true,
     this.isRecurring = false,
     this.recurrenceFrequency = RecurrenceFrequency.monthly,
     this.intervalDays = 1,
@@ -55,7 +63,9 @@ class MultiItemLine {
       base = name;
     }
 
-    if (personName != null && personName!.trim().isNotEmpty) {
+    if (allocations.length > 1) {
+      base = '$base • split between ${allocations.length} members';
+    } else if (personName != null && personName!.trim().isNotEmpty) {
       base = '$base • for ${personName!.trim()}';
     }
     if (isRecurring) {
@@ -194,7 +204,8 @@ class MultiItemDetailScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<MultiItemDetailScreen> createState() => _MultiItemDetailScreenState();
+  ConsumerState<MultiItemDetailScreen> createState() =>
+      _MultiItemDetailScreenState();
 }
 
 class _ItemEntry {
@@ -205,11 +216,14 @@ class _ItemEntry {
   final TextEditingController qtyController = TextEditingController();
   final TextEditingController unitPriceController = TextEditingController();
   final TextEditingController totalController = TextEditingController();
+  Map<String, dynamic> details;
 
   String selectedUnit = '';
   ExpenseClassification classification;
   String? personId;
   String? personName;
+  List<ExpenseAllocation> allocations;
+  bool allocationByPercentage;
   bool isRecurring;
   RecurrenceFrequency recurrenceFrequency;
   int intervalDays;
@@ -221,13 +235,16 @@ class _ItemEntry {
     double? initialAmount,
     String? initialQuantity,
     double? initialUnitPrice,
+    Map<String, dynamic> details = const {},
     this.classification = ExpenseClassification.required,
     this.personId,
     this.personName,
+    this.allocations = const [],
+    this.allocationByPercentage = true,
     this.isRecurring = false,
     this.recurrenceFrequency = RecurrenceFrequency.monthly,
     this.intervalDays = 1,
-  }) {
+  }) : details = Map<String, dynamic>.from(details) {
     if (initialAmount != null && initialAmount > 0) {
       totalController.text = _formatNum(initialAmount);
     }
@@ -356,9 +373,12 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
           initialAmount: line.amount,
           initialQuantity: line.quantity,
           initialUnitPrice: line.unitPrice,
+          details: Map<String, dynamic>.from(line.details),
           classification: line.classification,
           personId: line.personId,
           personName: line.personName,
+          allocations: line.allocations,
+          allocationByPercentage: line.allocationByPercentage,
           isRecurring: line.isRecurring,
           recurrenceFrequency: line.recurrenceFrequency,
           intervalDays: line.intervalDays,
@@ -369,9 +389,12 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
         entry.classification = line.classification;
         entry.personId = line.personId;
         entry.personName = line.personName;
+        entry.allocations = line.allocations;
+        entry.allocationByPercentage = line.allocationByPercentage;
         entry.isRecurring = line.isRecurring;
         entry.recurrenceFrequency = line.recurrenceFrequency;
         entry.intervalDays = line.intervalDays;
+        entry.details = Map<String, dynamic>.from(line.details);
         if (line.amount > 0) {
           entry.totalController.text = _formatNum(line.amount);
         }
@@ -434,9 +457,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
     super.dispose();
   }
 
-  double get _totalAllocated => _items
-      .where((i) => i.isSelected)
-      .fold(0.0, (sum, i) => sum + i.amount);
+  double get _totalAllocated =>
+      _items.where((i) => i.isSelected).fold(0.0, (sum, i) => sum + i.amount);
 
   int get _selectedCount => _items.where((i) => i.isSelected).length;
 
@@ -523,7 +545,9 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
   void _showEditTargetDialog() {
     final sym = CurrencyFormatters.defaultCurrency;
     final controller = TextEditingController(
-      text: _targetTotal != null && _targetTotal! > 0 ? _formatNum(_targetTotal!) : '',
+      text: _targetTotal != null && _targetTotal! > 0
+          ? _formatNum(_targetTotal!)
+          : '',
     );
 
     showDialog(
@@ -551,15 +575,23 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                 TextField(
                   controller: controller,
                   autofocus: true,
-                  keyboardType: TextInputType.text,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.+-]')),
+                  ],
                   decoration: InputDecoration(
                     labelText: 'Target Amount',
                     prefixText: '$sym ',
                     border: const OutlineInputBorder(),
-                    helperText: eval != null && MathEvaluator.hasOperator(controller.text)
+                    helperText: eval != null &&
+                            MathEvaluator.hasOperator(controller.text)
                         ? '= $sym ${MathEvaluator.format(eval)}'
                         : null,
-                    helperStyle: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                    helperStyle: const TextStyle(
+                        color: Colors.green, fontWeight: FontWeight.bold),
                   ),
                   onChanged: (_) => setDialogState(() {}),
                 ),
@@ -612,12 +644,14 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
     final selected = _items.where((i) => i.isSelected).toList();
     if (selected.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least one subcategory item.')),
+        const SnackBar(
+            content: Text('Please select at least one subcategory item.')),
       );
       return;
     }
 
-    final missing = selected.where((i) => i.amount <= 0).map((i) => i.name).toList();
+    final missing =
+        selected.where((i) => i.amount <= 0).map((i) => i.name).toList();
     if (missing.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -626,6 +660,35 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
         ),
       );
       return;
+    }
+
+    for (final item in selected) {
+      final error = expenseDetailsValidationError(
+          widget.category.id, item.subcategoryId, item.details);
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${item.name}: $error'),
+          backgroundColor: Colors.red.shade700,
+        ));
+        return;
+      }
+      if (expenseUsesQuantity(widget.category.id, item.subcategoryId)) {
+        final quantityText = item.qtyController.text.trim();
+        final unitPriceText = item.unitPriceController.text.trim();
+        final quantity = double.tryParse(quantityText);
+        final unitPrice = double.tryParse(unitPriceText);
+        if ((quantityText.isNotEmpty &&
+                (quantity == null || !quantity.isFinite || quantity <= 0)) ||
+            (unitPriceText.isNotEmpty &&
+                (unitPrice == null || !unitPrice.isFinite || unitPrice <= 0))) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content:
+                Text('${item.name}: quantity and unit price must be positive'),
+            backgroundColor: Colors.red.shade700,
+          ));
+          return;
+        }
+      }
     }
 
     if (_targetTotal != null && _targetTotal! > 0) {
@@ -647,7 +710,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: isOver ? Colors.red : Colors.amber.shade800),
+            Icon(Icons.warning_amber_rounded,
+                color: isOver ? Colors.red : Colors.amber.shade800),
             const SizedBox(width: 8),
             const Text('Amount Mismatch'),
           ],
@@ -696,17 +760,59 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
     );
   }
 
+  List<ExpenseAllocation>? _resolvedAllocations(_ItemEntry item) {
+    if (item.allocations.isEmpty) {
+      if (item.personId == null) return const [];
+      return [
+        ExpenseAllocation(
+          personId: item.personId!,
+          personName: item.personName ?? 'Member',
+          percentage: 100,
+          amount: item.amount,
+        ),
+      ];
+    }
+    return ExpenseAllocation.resolve(
+      item.allocations,
+      item.amount,
+      byPercentage: item.allocationByPercentage,
+    );
+  }
+
   void _finishWithSelected(List<_ItemEntry> selected) {
+    for (final item in selected) {
+      if (_resolvedAllocations(item) == null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Family split for ${item.name} must total '
+              '${item.allocationByPercentage ? '100%' : '${CurrencyFormatters.defaultCurrency} ${_formatNum(item.amount)}'}.'),
+        ));
+        return;
+      }
+    }
     final results = selected.map((i) {
+      final allocations = _resolvedAllocations(i)!;
+      final usesQuantity =
+          expenseUsesQuantity(widget.category.id, i.subcategoryId);
+      final details = Map<String, dynamic>.from(i.details)
+        ..remove('quantity')
+        ..remove('unitPrice');
+      if (usesQuantity) {
+        if (i.quantity != null) details['quantity'] = i.quantity;
+        if (i.unitPrice != null) details['unitPrice'] = i.unitPrice;
+      }
       return MultiItemLine(
         name: i.name,
         subcategoryId: i.subcategoryId,
         amount: i.amount,
-        quantity: i.quantity,
-        unitPrice: i.unitPrice,
+        quantity: usesQuantity ? i.quantity : null,
+        unitPrice: usesQuantity ? i.unitPrice : null,
+        details: details,
         classification: i.classification,
-        personId: i.personId,
-        personName: i.personName,
+        personId: allocations.length == 1 ? allocations.first.personId : null,
+        personName:
+            allocations.length == 1 ? allocations.first.personName : null,
+        allocations: allocations,
+        allocationByPercentage: i.allocationByPercentage,
         isRecurring: i.isRecurring,
         recurrenceFrequency: i.recurrenceFrequency,
         intervalDays: i.intervalDays,
@@ -730,7 +836,9 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
 
     List<_ItemEntry> visible = _items;
     if (_searchQuery.isNotEmpty) {
-      visible = visible.where((i) => i.name.toLowerCase().contains(_searchQuery)).toList();
+      visible = visible
+          .where((i) => i.name.toLowerCase().contains(_searchQuery))
+          .toList();
     }
     if (_selectedFilterTab == 1) {
       visible = visible.where((i) => i.isSelected).toList();
@@ -764,7 +872,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
           TextButton.icon(
             onPressed: _selectedCount == 0 ? null : _done,
             icon: const Icon(Icons.check, size: 20),
-            label: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
+            label: const Text('Done',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -801,23 +910,27 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
         decoration: BoxDecoration(
           color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+          border:
+              Border.all(color: scheme.outlineVariant.withValues(alpha: 0.6)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                const Icon(Icons.calculate_outlined, color: Colors.green, size: 24),
+                const Icon(Icons.calculate_outlined,
+                    color: Colors.green, size: 24),
                 const SizedBox(width: 10),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Total Allocated: $sym ${_formatNum(_totalAllocated)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 15)),
                     Text('$_selectedCount items selected',
                         style: TextStyle(
-                            fontSize: 12, color: scheme.onSurface.withValues(alpha: 0.7))),
+                            fontSize: 12,
+                            color: scheme.onSurface.withValues(alpha: 0.7))),
                   ],
                 ),
               ],
@@ -825,7 +938,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               ),
               onPressed: _showEditTargetDialog,
               icon: const Icon(Icons.add, size: 16),
@@ -851,7 +965,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
             ? 'Exceeds by $sym ${_formatNum(diff.abs())}'
             : 'Remaining: $sym ${_formatNum(diff)}');
 
-    final progressVal = target > 0 ? (_totalAllocated / target).clamp(0.0, 1.0) : 0.0;
+    final progressVal =
+        target > 0 ? (_totalAllocated / target).clamp(0.0, 1.0) : 0.0;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 10, 14, 6),
@@ -879,7 +994,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                   children: [
                     Text(
                       'Target: $sym ${_formatNum(target)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                     const SizedBox(width: 6),
                     InkWell(
@@ -887,7 +1003,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                       borderRadius: BorderRadius.circular(4),
                       child: Padding(
                         padding: const EdgeInsets.all(2),
-                        child: Icon(Icons.edit, size: 15, color: scheme.primary),
+                        child:
+                            Icon(Icons.edit, size: 15, color: scheme.primary),
                       ),
                     ),
                   ],
@@ -926,7 +1043,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
             children: [
               Text(
                 'Allocated: $sym ${_formatNum(_totalAllocated)}',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
               ),
               if (!isMatched)
                 InkWell(
@@ -947,7 +1065,9 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
               else
                 Text(
                   '$_selectedCount item${_selectedCount == 1 ? '' : 's'}',
-                  style: TextStyle(fontSize: 12, color: scheme.onSurface.withValues(alpha: 0.7)),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurface.withValues(alpha: 0.7)),
                 ),
             ],
           ),
@@ -981,9 +1101,11 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
-            onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+            onChanged: (val) =>
+                setState(() => _searchQuery = val.trim().toLowerCase()),
           ),
           const SizedBox(height: 6),
           Row(
@@ -1000,7 +1122,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                   onSubmitted: (_) => _addCustomItem(),
                 ),
@@ -1008,8 +1131,10 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
               const SizedBox(width: 8),
               FilledButton.icon(
                 style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 ),
                 onPressed: _addCustomItem,
                 icon: const Icon(Icons.add, size: 18),
@@ -1055,18 +1180,193 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
             _selectedFilterTab == 1
                 ? 'No items selected yet'
                 : 'No items matching "$_searchQuery"',
-            style: TextStyle(fontSize: 15, color: scheme.onSurface.withValues(alpha: 0.7)),
+            style: TextStyle(
+                fontSize: 15, color: scheme.onSurface.withValues(alpha: 0.7)),
           ),
           const SizedBox(height: 6),
           Text(
             _selectedFilterTab == 1
                 ? 'Switch to "All" tab to tick items.'
                 : 'Type above and tap "+ Add" to create it.',
-            style: TextStyle(fontSize: 12, color: scheme.onSurface.withValues(alpha: 0.5)),
+            style: TextStyle(
+                fontSize: 12, color: scheme.onSurface.withValues(alpha: 0.5)),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _editFamilySplit(_ItemEntry item, List<Person> people) async {
+    if (people.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a family member first.')),
+      );
+      return;
+    }
+
+    var byPercentage = item.allocationByPercentage;
+    final availableIds = people.map((person) => person.uuid).toSet();
+    final selected = <String>{
+      ...item.allocations
+          .map((share) => share.personId)
+          .where(availableIds.contains),
+      if (item.allocations.isEmpty &&
+          item.personId != null &&
+          availableIds.contains(item.personId))
+        item.personId!,
+    };
+    String initialShare(Person person) {
+      final share = item.allocations
+          .where((allocation) => allocation.personId == person.uuid)
+          .firstOrNull;
+      if (share != null) {
+        return _formatNum(byPercentage ? share.percentage : share.amount);
+      }
+      return item.personId == person.uuid
+          ? _formatNum(byPercentage ? 100 : item.amount)
+          : '';
+    }
+
+    final controllers = <String, TextEditingController>{
+      for (final person in people)
+        person.uuid: TextEditingController(text: initialShare(person)),
+    };
+    String? error;
+    final result = await showDialog<List<ExpenseAllocation>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Split ${item.name}'),
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: true, label: Text('Percent')),
+                      ButtonSegment(value: false, label: Text('Amount')),
+                    ],
+                    selected: {byPercentage},
+                    onSelectionChanged: (choice) {
+                      setDialogState(() {
+                        byPercentage = choice.first;
+                        error = null;
+                        for (final person in people) {
+                          final share = item.allocations
+                              .where((a) => a.personId == person.uuid)
+                              .firstOrNull;
+                          controllers[person.uuid]!.text = share == null
+                              ? ''
+                              : _formatNum(byPercentage
+                                  ? share.percentage
+                                  : share.amount);
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  for (final person in people)
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: selected.contains(person.uuid),
+                          onChanged: (checked) => setDialogState(() {
+                            if (checked == true) {
+                              selected.add(person.uuid);
+                            } else {
+                              selected.remove(person.uuid);
+                            }
+                            error = null;
+                          }),
+                        ),
+                        Expanded(child: Text(person.name)),
+                        SizedBox(
+                          width: 100,
+                          child: TextField(
+                            controller: controllers[person.uuid],
+                            enabled: selected.contains(person.uuid),
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                  RegExp(r'[0-9.]')),
+                            ],
+                            decoration: InputDecoration(
+                              isDense: true,
+                              suffixText: byPercentage ? '%' : null,
+                              prefixText: byPercentage
+                                  ? null
+                                  : '${CurrencyFormatters.defaultCurrency} ',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  if (error != null)
+                    Text(error!, style: const TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final values = <String, double>{};
+                for (final id in selected) {
+                  final value = double.tryParse(controllers[id]!.text.trim());
+                  if (value == null || value <= 0 || !value.isFinite) {
+                    setDialogState(() => error =
+                        'Enter a positive share for each selected member.');
+                    return;
+                  }
+                  values[id] = value;
+                }
+                final total =
+                    values.values.fold<double>(0, (sum, value) => sum + value);
+                final expected = byPercentage ? 100.0 : item.amount;
+                if (values.isNotEmpty && (total - expected).abs() > 0.01) {
+                  setDialogState(() => error = byPercentage
+                      ? 'Shares must total 100%.'
+                      : 'Shares must total ${CurrencyFormatters.defaultCurrency} ${_formatNum(item.amount)}.');
+                  return;
+                }
+                Navigator.pop(dialogContext, [
+                  for (final person in people)
+                    if (values.containsKey(person.uuid))
+                      ExpenseAllocation(
+                        personId: person.uuid,
+                        personName: person.name,
+                        percentage: byPercentage
+                            ? values[person.uuid]!
+                            : values[person.uuid]! / item.amount * 100,
+                        amount: byPercentage
+                            ? item.amount * values[person.uuid]! / 100
+                            : values[person.uuid]!,
+                      ),
+                ]);
+              },
+              child: const Text('Apply'),
+            ),
+          ],
+        ),
+      ),
+    );
+    for (final controller in controllers.values) {
+      controller.dispose();
+    }
+    if (result == null || !mounted) return;
+    setState(() {
+      item.allocations = result;
+      item.allocationByPercentage = byPercentage;
+      item.personId = result.length == 1 ? result.first.personId : null;
+      item.personName = result.length == 1 ? result.first.personName : null;
+    });
   }
 
   Widget _buildItemCard(
@@ -1080,17 +1380,20 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
         margin: const EdgeInsets.symmetric(vertical: 3),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+          border:
+              Border.all(color: scheme.outlineVariant.withValues(alpha: 0.5)),
         ),
         child: ListTile(
           dense: true,
           contentPadding: const EdgeInsets.symmetric(horizontal: 8),
           leading: Checkbox(
             value: false,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             onChanged: (v) => setState(() => item.isSelected = true),
           ),
-          title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+          title: Text(item.name,
+              style: const TextStyle(fontWeight: FontWeight.w500)),
           trailing: IconButton(
             icon: const Icon(Icons.add_circle_outline, color: Colors.green),
             onPressed: () => setState(() => item.isSelected = true),
@@ -1100,15 +1403,28 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
       );
     }
 
-    // Selected state with 3-way calculator inputs + classification + family member assignment
+    final usesQuantity =
+        expenseUsesQuantity(widget.category.id, item.subcategoryId);
+    final detailFields =
+        expenseDetailFields(widget.category.id, item.subcategoryId);
+    final amountLabel = widget.category.id == 'cat_utilities'
+        ? 'Bill Amount'
+        : item.subcategoryId == 'sub_house_rent'
+            ? 'Rent Amount'
+            : item.subcategoryId == 'sub_house_repair' ||
+                    item.subcategoryId == 'sub_car_repair'
+                ? 'Repair Amount'
+                : 'Amount';
     final double? q = double.tryParse(item.qtyController.text.trim());
     final double? up = double.tryParse(item.unitPriceController.text.trim());
     final double tot = item.amount;
 
     String formulaText = '';
-    if (q != null && q > 0 && up != null && up > 0) {
-      final unitSuffix = item.selectedUnit.isNotEmpty ? ' ${item.selectedUnit}' : '';
-      formulaText = '${_formatNum(q)}$unitSuffix × $sym ${_formatNum(up)} = $sym ${_formatNum(tot)}';
+    if (usesQuantity && q != null && q > 0 && up != null && up > 0) {
+      final unitSuffix =
+          item.selectedUnit.isNotEmpty ? ' ${item.selectedUnit}' : '';
+      formulaText =
+          '${_formatNum(q)}$unitSuffix × $sym ${_formatNum(up)} = $sym ${_formatNum(tot)}';
     } else if (tot > 0) {
       formulaText = 'Total: $sym ${_formatNum(tot)}';
     }
@@ -1119,7 +1435,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
       decoration: BoxDecoration(
         color: Colors.green.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.withValues(alpha: 0.6), width: 1.5),
+        border:
+            Border.all(color: Colors.green.withValues(alpha: 0.6), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1131,7 +1448,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
               Expanded(
                 child: Text(
                   item.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 15),
                 ),
               ),
               IconButton(
@@ -1145,101 +1463,131 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          // Row 1: Quantity + Unit Dropdown
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: TextField(
-                  controller: item.qtyController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                  ],
-                  decoration: const InputDecoration(
-                    labelText: 'Quantity',
-                    hintText: 'e.g. 2',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          if (usesQuantity) ...[
+            // Row 1: Quantity + Unit Dropdown
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: item.qtyController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Quantity',
+                      hintText: 'e.g. 2',
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                    onChanged: (text) => _onQtyChanged(item, text),
                   ),
-                  onChanged: (text) => _onQtyChanged(item, text),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 2,
-                child: DropdownButtonFormField<String>(
-                  initialValue: _commonUnits.contains(item.selectedUnit) ? item.selectedUnit : '',
-                  decoration: const InputDecoration(
-                    labelText: 'Unit',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _commonUnits.contains(item.selectedUnit)
+                        ? item.selectedUnit
+                        : '',
+                    decoration: const InputDecoration(
+                      labelText: 'Unit',
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    ),
+                    items: _commonUnits.map((u) {
+                      return DropdownMenuItem<String>(
+                        value: u,
+                        child: Text(u.isEmpty ? 'None' : u,
+                            style: const TextStyle(fontSize: 13)),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        item.selectedUnit = val ?? '';
+                      });
+                    },
                   ),
-                  items: _commonUnits.map((u) {
-                    return DropdownMenuItem<String>(
-                      value: u,
-                      child: Text(u.isEmpty ? 'None' : u, style: const TextStyle(fontSize: 13)),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      item.selectedUnit = val ?? '';
-                    });
-                  },
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Row 2: Unit Price and Total Amount (3-way calculation)
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: item.unitPriceController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                  ],
-                  decoration: InputDecoration(
-                    labelText: 'Unit Price',
-                    prefixText: '$sym ',
-                    hintText: '0',
-                    isDense: true,
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Row 2: Unit Price and Total Amount (3-way calculation)
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: item.unitPriceController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: 'Unit Price',
+                      prefixText: '$sym ',
+                      hintText: '0',
+                      isDense: true,
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                    ),
+                    onChanged: (text) => _onUnitPriceChanged(item, text),
                   ),
-                  onChanged: (text) => _onUnitPriceChanged(item, text),
                 ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6),
-                child: Text('=', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: item.totalController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                  ],
-                  decoration: InputDecoration(
-                    labelText: 'Total Amount',
-                    prefixText: '$sym ',
-                    hintText: '0',
-                    isDense: true,
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6),
+                  child: Text('=',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: item.totalController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: 'Total Amount',
+                      prefixText: '$sym ',
+                      hintText: '0',
+                      isDense: true,
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                    ),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.green),
+                    onChanged: (text) => _onTotalChanged(item, text),
                   ),
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                  onChanged: (text) => _onTotalChanged(item, text),
                 ),
+              ],
+            ),
+          ] else
+            TextField(
+              controller: item.totalController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+              ],
+              decoration: InputDecoration(
+                labelText: amountLabel,
+                prefixText: '$sym ',
+                isDense: true,
+                border: const OutlineInputBorder(),
               ),
-            ],
-          ),
-          if (formulaText.isNotEmpty) ...[
+              onChanged: (text) => _onTotalChanged(item, text),
+            ),
+          if (usesQuantity && formulaText.isNotEmpty) ...[
             const SizedBox(height: 6),
             Row(
               children: [
@@ -1254,6 +1602,32 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                   ),
                 ),
               ],
+            ),
+          ],
+          for (final field in detailFields) ...[
+            const SizedBox(height: 8),
+            TextFormField(
+              key: ValueKey('${item.name}:${field.key}'),
+              initialValue: item.details[field.key]?.toString() ?? '',
+              keyboardType: field.isNumber
+                  ? const TextInputType.numberWithOptions(decimal: true)
+                  : TextInputType.text,
+              inputFormatters: field.isNumber
+                  ? [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]
+                  : null,
+              decoration: InputDecoration(
+                labelText: '${field.label} (optional)',
+                isDense: true,
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: (value) {
+                final text = value.trim();
+                if (text.isEmpty) {
+                  item.details.remove(field.key);
+                } else {
+                  item.details[field.key] = text;
+                }
+              },
             ),
           ],
           const SizedBox(height: 10),
@@ -1292,14 +1666,16 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                           c.label,
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                            fontWeight:
+                                isSel ? FontWeight.bold : FontWeight.normal,
                             color: isSel ? Colors.white : color,
                           ),
                         ),
                         selected: isSel,
                         selectedColor: color,
                         backgroundColor: color.withValues(alpha: 0.08),
-                        side: BorderSide(color: color.withValues(alpha: isSel ? 1.0 : 0.4)),
+                        side: BorderSide(
+                            color: color.withValues(alpha: isSel ? 1.0 : 0.4)),
                         showCheckmark: false,
                         onSelected: (val) {
                           if (val) setState(() => item.classification = c);
@@ -1312,52 +1688,25 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          // Row 4: Assign to Family Member
+          // Row 4: Split this subcategory amount among family members.
           Row(
             children: [
               Expanded(
-                child: DropdownButtonFormField<String?>(
-                  initialValue: item.personId,
-                  decoration: const InputDecoration(
-                    labelText: 'Assign to Family Member',
-                    prefixIcon: Icon(Icons.person_outline, size: 18),
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  ),
-                  isExpanded: true,
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Household (Shared)', style: TextStyle(fontSize: 12)),
-                    ),
-                    ...peopleList.map((p) {
-                      final rel = p.relationship != null && p.relationship!.isNotEmpty
-                          ? ' (${p.relationship})'
-                          : '';
-                      return DropdownMenuItem<String?>(
-                        value: p.uuid,
-                        child: Text(
-                          '${p.name}$rel',
-                          style: const TextStyle(fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }),
-                  ],
-                  onChanged: (val) {
-                    setState(() {
-                      item.personId = val;
-                      final matched = peopleList.where((p) => p.uuid == val).firstOrNull;
-                      item.personName = matched?.name;
-                    });
-                  },
+                child: OutlinedButton.icon(
+                  onPressed: () => _editFamilySplit(item, peopleList),
+                  icon: const Icon(Icons.people_outline, size: 18),
+                  label: Text(item.allocations.isEmpty
+                      ? 'Split among family members'
+                      : item.allocations.length == 1
+                          ? 'Assigned to ${item.allocations.first.personName}'
+                          : 'Split among ${item.allocations.length} members'),
                 ),
               ),
               const SizedBox(width: 6),
               IconButton(
                 visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.person_add_alt_1_outlined, color: Colors.green, size: 20),
+                icon: const Icon(Icons.person_add_alt_1_outlined,
+                    color: Colors.green, size: 20),
                 tooltip: 'Add Family Member',
                 onPressed: () async {
                   final created = await showAddPersonDialog(context, ref);
@@ -1365,6 +1714,15 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                     setState(() {
                       item.personId = created.uuid;
                       item.personName = created.name;
+                      item.allocations = [
+                        ExpenseAllocation(
+                          personId: created.uuid,
+                          personName: created.name,
+                          percentage: 100,
+                          amount: item.amount,
+                        ),
+                      ];
+                      item.allocationByPercentage = true;
                     });
                   }
                 },
@@ -1396,12 +1754,15 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                         Icon(
                           Icons.repeat,
                           size: 16,
-                          color: item.isRecurring ? Colors.blue : Colors.grey.shade600,
+                          color: item.isRecurring
+                              ? Colors.blue
+                              : Colors.grey.shade600,
                         ),
                         const SizedBox(width: 6),
                         const Text(
                           'Recurring Expense',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
@@ -1429,21 +1790,24 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                             labelText: 'Repeat',
                             isDense: true,
                             border: OutlineInputBorder(),
-                            contentPadding:
-                                EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 6),
                           ),
                           items: const [
                             DropdownMenuItem(
                               value: RecurrenceFrequency.daily,
-                              child: Text('Every day', style: TextStyle(fontSize: 12)),
+                              child: Text('Every day',
+                                  style: TextStyle(fontSize: 12)),
                             ),
                             DropdownMenuItem(
                               value: RecurrenceFrequency.everyNDays,
-                              child: Text('Every number of days', style: TextStyle(fontSize: 12)),
+                              child: Text('Every number of days',
+                                  style: TextStyle(fontSize: 12)),
                             ),
                             DropdownMenuItem(
                               value: RecurrenceFrequency.monthly,
-                              child: Text('Every month', style: TextStyle(fontSize: 12)),
+                              child: Text('Every month',
+                                  style: TextStyle(fontSize: 12)),
                             ),
                           ],
                           onChanged: (freq) {
@@ -1453,7 +1817,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                           },
                         ),
                       ),
-                      if (item.recurrenceFrequency == RecurrenceFrequency.everyNDays) ...[
+                      if (item.recurrenceFrequency ==
+                          RecurrenceFrequency.everyNDays) ...[
                         const SizedBox(width: 8),
                         SizedBox(
                           width: 80,
@@ -1464,8 +1829,8 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                               labelText: 'Days',
                               isDense: true,
                               border: OutlineInputBorder(),
-                              contentPadding:
-                                  EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 6),
                             ),
                             style: const TextStyle(fontSize: 12),
                             onChanged: (v) {
@@ -1510,7 +1875,9 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                 children: [
                   Text(
                     '$_selectedCount item${_selectedCount == 1 ? '' : 's'} selected',
-                    style: TextStyle(fontSize: 12, color: scheme.onSurface.withValues(alpha: 0.7)),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurface.withValues(alpha: 0.7)),
                   ),
                   Row(
                     children: [
@@ -1519,7 +1886,9 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
-                          color: _isTargetMatched ? Colors.green : Colors.amber.shade900,
+                          color: _isTargetMatched
+                              ? Colors.green
+                              : Colors.amber.shade900,
                         ),
                       ),
                       if (_targetTotal != null && _targetTotal! > 0) ...[
@@ -1541,11 +1910,13 @@ class _MultiItemDetailScreenState extends ConsumerState<MultiItemDetailScreen> {
             FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.green,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
               ),
               onPressed: _selectedCount == 0 ? null : _done,
               icon: const Icon(Icons.check),
-              label: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text('Done',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
