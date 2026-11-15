@@ -18,7 +18,7 @@
             android:value="location_reminders_channel" />
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-1852108665659812~7585922454"/>
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
         
         <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" android:exported="false" />
         <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver" android:exported="true">

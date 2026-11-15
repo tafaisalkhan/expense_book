@@ -56,20 +56,20 @@ class AdNotifier extends StateNotifier<AdState> {
 
   static String get interstitialAdUnitId {
     if (!kIsWeb && Platform.isAndroid) {
-      return 'ca-app-pub-1852108665659812/6272840780'; // Production Interstitial Ad ID
+      return const String.fromEnvironment('ADMOB_INTERSTITIAL_ID', defaultValue: 'ca-app-pub-3940256099942544/1033173712');
     } else if (!kIsWeb && Platform.isIOS) {
       return 'ca-app-pub-3940256099942544/4411468910';
     }
-    return 'ca-app-pub-1852108665659812/6272840780';
+    return const String.fromEnvironment('ADMOB_INTERSTITIAL_ID', defaultValue: 'ca-app-pub-3940256099942544/1033173712');
   }
 
   static String get rewardedAdUnitId {
     if (!kIsWeb && Platform.isAndroid) {
-      return 'ca-app-pub-1852108665659812/7203527509'; // Production Rewarded Ad ID
+      return const String.fromEnvironment('ADMOB_REWARDED_ID', defaultValue: 'ca-app-pub-3940256099942544/5224354917');
     } else if (!kIsWeb && Platform.isIOS) {
       return 'ca-app-pub-3940256099942544/1712485313';
     }
-    return 'ca-app-pub-1852108665659812/7203527509';
+    return const String.fromEnvironment('ADMOB_REWARDED_ID', defaultValue: 'ca-app-pub-3940256099942544/5224354917');
   }
 
   Future<void> _loadAdState() async {
@@ -556,11 +556,11 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget>
 
   static String get bannerAdUnitId {
     if (!kIsWeb && Platform.isAndroid) {
-      return 'ca-app-pub-1852108665659812/8920108867'; // Production Banner Ad ID
+      return const String.fromEnvironment('ADMOB_BANNER_ID', defaultValue: 'ca-app-pub-3940256099942544/6300978111');
     } else if (!kIsWeb && Platform.isIOS) {
       return 'ca-app-pub-3940256099942544/2934735716';
     }
-    return 'ca-app-pub-1852108665659812/8920108867';
+    return const String.fromEnvironment('ADMOB_BANNER_ID', defaultValue: 'ca-app-pub-3940256099942544/6300978111');
   }
 
   @override

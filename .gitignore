@@ -67,3 +67,25 @@ GoogleService-Info.plist
 myexpense_local_backup.zip
 *.json.backup
 *.zip
+
+# === Security & Exclusion Rules (no assets, json, keystores, or secrets) ===
+assets/
+**/assets/
+*.json
+**/*.json
+*.keystore
+*.jks
+*.key
+*.p12
+*.pem
+key.properties
+**/key.properties
+keystore_credentials*
+admob_secrets.gd
+admob_secrets.gd.uid
+admob_secrets.cfg
+admob_secrets.json
+.godot/
+build/
+*.aab
+*.apk
