@@ -15,6 +15,9 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:myexpence/features/sms_parser/domain/services/sms_listener_service.dart';
 import 'package:myexpence/features/sms_parser/presentation/widgets/sms_approval_dialog.dart';
 import 'package:myexpence/features/expenses/presentation/widgets/pending_recurring_expenses_dialog.dart';
+import 'package:myexpence/features/support/support_actions.dart';
+import 'package:myexpence/features/support/support_dialog.dart';
+import 'package:myexpence/features/backup/monthly_backup_billing.dart';
 
 class MainShellScreen extends ConsumerStatefulWidget {
   final Widget child;
@@ -29,6 +32,56 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
     with WidgetsBindingObserver {
   StreamSubscription? _intentDataStreamSubscription;
   bool _checkingRecurringExpenses = false;
+  GoRouter? _supportRouter;
+  bool _supportCheckScheduled = false;
+  bool _updateSnackShown = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.of(context);
+    if (_supportRouter != router) {
+      _supportRouter?.routerDelegate.removeListener(_supportRouteChanged);
+      _supportRouter = router;
+      router.routerDelegate.addListener(_supportRouteChanged);
+      _supportRouteChanged();
+    }
+  }
+
+  void _supportRouteChanged() {
+    if (!mounted || _supportRouter == null) return;
+    ref
+        .read(supportPromptSessionProvider)
+        .visit(_supportRouter!.routeInformationProvider.value.uri.path);
+    _checkSupportPopup();
+  }
+
+  void _checkSupportPopup() {
+    if (_supportCheckScheduled || !mounted) return;
+    _supportCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _supportCheckScheduled = false;
+      if (!mounted) return;
+      final session = ref.read(supportPromptSessionProvider);
+      final ads = ref.read(adNotifierProvider);
+      if (!session.eligible ||
+          _checkingRecurringExpenses ||
+          !ref.read(authProvider).isLoggedIn ||
+          ref.read(adNotifierProvider.notifier).noAdsNoticeOpen ||
+          ads.isShowingInterstitial ||
+          ads.isShowingRewarded ||
+          Navigator.of(context, rootNavigator: true).canPop()) {
+        return;
+      }
+      final action = session.claim();
+      if (action == null) return;
+      unawaited(showDialog<void>(
+          context: context,
+          barrierColor: Colors.black.withValues(alpha: .45),
+          builder: (_) => SupportDialog(action: action)));
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
 
   @override
   void initState() {
@@ -40,11 +93,13 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
       AppPermissionsService.requestAllStartupPermissions(ref, context: context);
       _checkRecurringExpenses();
       _scheduleRecurringReminder();
+      unawaited(ref.read(supportActionsProvider.notifier).checkForAppUpdate());
     });
   }
 
   @override
   void dispose() {
+    _supportRouter?.routerDelegate.removeListener(_supportRouteChanged);
     WidgetsBinding.instance.removeObserver(this);
     _intentDataStreamSubscription?.cancel();
     super.dispose();
@@ -58,6 +113,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
           context: context, forceRefresh: true);
       _checkInitialSmsNotification();
       _checkRecurringExpenses();
+      unawaited(ref.read(supportActionsProvider.notifier).checkForAppUpdate());
     }
   }
 
@@ -69,6 +125,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
     } catch (_) {
     } finally {
       _checkingRecurringExpenses = false;
+      _checkSupportPopup();
     }
   }
 
@@ -162,6 +219,25 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(supportActionsProvider);
+    ref.watch(monthlyBackupBillingProvider);
+    ref.listen<AdState>(adNotifierProvider, (_, __) => _checkSupportPopup());
+    ref.listen<bool>(supportActionsProvider.select((s) => s.updateDownloaded),
+        (_, downloaded) {
+      if (!downloaded || _updateSnackShown || !mounted) return;
+      _updateSnackShown = true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 12),
+          content: const Text('App update downloaded and ready to install.'),
+          action: SnackBarAction(
+            label: 'Restart',
+            onPressed: () =>
+                ref.read(supportActionsProvider.notifier).completeAppUpdate(),
+          ),
+        ),
+      );
+    });
     ref.listen<AuthUser>(authProvider, (previous, next) async {
       if (next.requiresLogoutDialog && mounted) {
         final reason = next.logoutDialogReason ??
@@ -203,7 +279,9 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
           ),
         );
         if (mounted) {
-          await ref.read(authProvider.notifier).signOut(reason: reason, clearLocalData: false);
+          await ref
+              .read(authProvider.notifier)
+              .signOut(reason: reason, clearLocalData: false);
           if (context.mounted) {
             context.go('/login');
           }
@@ -218,14 +296,16 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
     return Scaffold(
       body: Column(
         children: [
-          const SafeArea(bottom: false, child: AdBannerWidget(isTop: true)), // Top Banner Ad (Ad #1)
+          const AdBannerWidget(isTop: true),
           Expanded(
             child: Stack(
               children: [
                 widget.child,
                 DraggableFloatingActionButton(
                   onPressed: () {
-                    ref.read(adNotifierProvider.notifier).recordNavigation(context, ref);
+                    ref
+                        .read(adNotifierProvider.notifier)
+                        .recordNavigation(context, ref);
                     context.push('/add');
                   },
                 ),

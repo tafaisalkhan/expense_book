@@ -10,6 +10,9 @@ import 'package:myexpence/features/security/presentation/providers/security_prov
 import 'package:myexpence/features/settings/domain/models/app_currency.dart';
 import 'package:myexpence/features/settings/presentation/providers/settings_providers.dart';
 import 'package:myexpence/features/subscription/domain/services/local_data_backup_service.dart';
+import 'package:myexpence/features/support/support_actions.dart';
+import 'package:myexpence/features/support/support_dialog.dart';
+import 'package:myexpence/features/backup/cloud_backup_card.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
@@ -18,6 +21,8 @@ class MoreScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authUser = ref.watch(authProvider);
     final isAdsRemoved = ref.watch(isAdsRemovedProvider);
+    final adState = ref.watch(adNotifierProvider);
+    final requiresRewardedAd = !isAdsRemoved && !adState.noFillThisLaunch && adState.rewardedReady;
 
     return Scaffold(
       appBar: AppBar(
@@ -302,129 +307,145 @@ class MoreScreen extends ConsumerWidget {
           const SizedBox(height: 16),
 
           // Remove Ads Product Card (`remove_ads`)
-          Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: isAdsRemoved ? Colors.green : Colors.amber),
-            ),
-            color: isAdsRemoved ? Colors.green.withValues(alpha: 0.08) : Colors.amber.withValues(alpha: 0.1),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        isAdsRemoved ? Icons.check_circle : Icons.star,
-                        color: isAdsRemoved ? Colors.green : Colors.amber,
-                        size: 32,
+          Builder(builder: (context) {
+            final removeAdsPrice = adState.removeAdsPrice ?? '\$4.99';
+            final hasPermanentRemoveAds = adState.isAdsRemoved;
+            final hasSubAdFree =
+                adState.hasActiveSubscription && !hasPermanentRemoveAds;
+            return Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: isAdsRemoved ? Colors.green : Colors.amber),
+              ),
+              color: isAdsRemoved ? Colors.green.withValues(alpha: 0.08) : Colors.amber.withValues(alpha: 0.1),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          isAdsRemoved ? Icons.check_circle : Icons.star,
+                          color: isAdsRemoved ? Colors.green : Colors.amber,
+                          size: 32,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                hasPermanentRemoveAds
+                                    ? 'Remove Ads Purchased ✅'
+                                    : hasSubAdFree
+                                        ? 'Ad-Free via Cloud Subscription ✅'
+                                        : 'Remove All Ads',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                hasPermanentRemoveAds
+                                    ? 'All banner, interstitial & rewarded ads are completely removed!'
+                                    : hasSubAdFree
+                                        ? 'All banner, interstitial & rewarded ads are automatically hidden while your Cloud Backup subscription is active!'
+                                        : 'One-time Google Play purchase ($removeAdsPrice). Bypasses all Rewarded Ads for Location, SMS, Download & Restore!',
+                                style: TextStyle(fontSize: 12, color: Colors.grey[800]),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isAdsRemoved ? Colors.green[700] : Colors.amber[800],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: isAdsRemoved
+                            ? null
+                            : () async {
+                                await ref.read(adNotifierProvider.notifier).purchaseRemoveAds();
+                                if (context.mounted) {
+                                  final isNowRemoved = ref.read(adNotifierProvider).adsSuppressed;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        isNowRemoved
+                                            ? '🎉 Ads Removed permanently! Unrestricted access unlocked.'
+                                            : 'ℹ️ Purchase request processed.',
+                                      ),
+                                      backgroundColor: isNowRemoved ? Colors.green : Colors.blue,
+                                    ),
+                                  );
+                                }
+                              },
+                        icon: Icon(isAdsRemoved ? Icons.verified : Icons.shopping_bag, size: 18),
+                        label: Text(
+                          hasPermanentRemoveAds
+                              ? 'Ads Removed Permanently ✅'
+                              : hasSubAdFree
+                                  ? 'Ads Hidden (Subscription Active) ✅'
+                                  : 'Remove Ads ($removeAdsPrice)',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isAdsRemoved ? 'Remove Ads Purchased ✅' : 'Remove All Ads (`remove_ads`)',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              isAdsRemoved
-                                  ? 'All banner, interstitial & rewarded ads are completely removed!'
-                                  : 'One-time Google Play purchase (\$4.99). Bypasses all Rewarded Ads for Location, SMS, Download & Restore!',
-                              style: TextStyle(fontSize: 12, color: Colors.grey[800]),
-                            ),
-                          ],
+                    ),
+                    if (kDebugMode && hasPermanentRemoveAds) ...[
+                      const SizedBox(height: 6),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: () async {
+                            await ref.read(adNotifierProvider.notifier).resetAds();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('🔄 Ads enabled again for testing!'),
+                                  backgroundColor: Colors.blue,
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Reset / Enable Ads (Testing)', style: TextStyle(fontSize: 12)),
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isAdsRemoved ? Colors.green[700] : Colors.amber[800],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onPressed: isAdsRemoved
-                          ? null
-                          : () async {
-                              await ref.read(adNotifierProvider.notifier).purchaseRemoveAds();
-                              if (context.mounted) {
-                                final isNowRemoved = ref.read(adNotifierProvider).isAdsRemoved;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      isNowRemoved
-                                          ? '🎉 Ads Removed permanently (`remove_ads`)! Unrestricted access unlocked.'
-                                          : 'ℹ️ Purchase request processed.',
-                                    ),
-                                    backgroundColor: isNowRemoved ? Colors.green : Colors.blue,
+                    if (!isAdsRemoved) ...[
+                      const SizedBox(height: 6),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: () async {
+                            await ref.read(adNotifierProvider.notifier).restorePurchases();
+                            if (context.mounted) {
+                              final isNowRemoved = ref.read(adNotifierProvider).adsSuppressed;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    isNowRemoved
+                                        ? '🎉 Google Play purchase restored! Ads Removed permanently.'
+                                        : 'ℹ️ Google Play restore check completed.',
                                   ),
-                                );
-                              }
-                            },
-                      icon: Icon(isAdsRemoved ? Icons.verified : Icons.shopping_bag, size: 18),
-                      label: Text(
-                        isAdsRemoved ? 'Ads Removed Permanently ✅' : 'Remove Ads (\$4.99)',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                    ),
-                  ),
-                  if (isAdsRemoved) ...[
-                    const SizedBox(height: 6),
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: () async {
-                          await ref.read(adNotifierProvider.notifier).resetAds();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('🔄 Ads enabled again for testing!'),
-                                backgroundColor: Colors.blue,
-                              ),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.refresh, size: 16),
-                        label: const Text('Reset / Enable Ads (Testing)', style: TextStyle(fontSize: 12)),
-                      ),
-                    ),
-                  ],
-                  if (!isAdsRemoved) ...[
-                    const SizedBox(height: 6),
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: () async {
-                          await ref.read(adNotifierProvider.notifier).restorePurchases();
-                          if (context.mounted) {
-                            final isNowRemoved = ref.read(adNotifierProvider).isAdsRemoved;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  isNowRemoved
-                                      ? '🎉 Google Play purchase restored! Ads Removed permanently.'
-                                      : 'ℹ️ Google Play restore check completed.',
+                                  backgroundColor: isNowRemoved ? Colors.green : Colors.blue,
                                 ),
-                                backgroundColor: isNowRemoved ? Colors.green : Colors.blue,
-                              ),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.restore, size: 16),
-                        label: const Text('Already Purchased? Restore Purchases', style: TextStyle(fontSize: 12)),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.restore, size: 16),
+                          label: const Text('Already Purchased? Restore Purchases', style: TextStyle(fontSize: 12)),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          }),
           const SizedBox(height: 16),
 
           // Main App Navigation Tiles
@@ -490,7 +511,83 @@ class MoreScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // Local Data Download & Restore Card (Runs after Rewarded Ad unless remove_ads purchased)
+          // Support My Expence Book Card (Rate, Share, Buy Me a Coffee)
+          Builder(builder: (context) {
+            final coffeeState = ref.watch(supportActionsProvider);
+            final supportSubtitle = adState.noFillThisLaunch && !isAdsRemoved
+                ? 'NO ADS TODAY — AD-FREE. Support development with a review, share, or optional coffee.'
+                : 'Enjoying the app? Leave a review, share with friends, or support development with a coffee.';
+            return Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.favorite_outline, color: AppTheme.primaryColor),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            coffeeState.preview
+                                ? 'Support My Expence Book (Preview)'
+                                : 'Support My Expence Book',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      supportSubtitle,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                    ),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.star_rounded, color: AppTheme.primaryColor),
+                      title: const Text('Rate on Google Play', style: TextStyle(fontWeight: FontWeight.w600)),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => const SupportDialog(action: SupportAction.rate),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.ios_share_rounded, color: AppTheme.primaryColor),
+                      title: const Text('Share the App', style: TextStyle(fontWeight: FontWeight.w600)),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => const SupportDialog(action: SupportAction.share),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.coffee_outlined, color: AppTheme.primaryColor),
+                      title: const Text('Buy Me a Coffee', style: TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text(
+                        coffeeState.product?.price != null
+                            ? 'One-time support · ${coffeeState.product!.price}'
+                            : 'Optional one-time support',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => const SupportDialog(action: SupportAction.coffee),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 16),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
@@ -509,7 +606,7 @@ class MoreScreen extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (!isAdsRemoved)
+                      if (requiresRewardedAd)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
@@ -522,7 +619,11 @@ class MoreScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Export your expenses & data to a local file. Restore this backup file on any device. (Runs after Rewarded Ad):',
+                    requiresRewardedAd
+                        ? 'Export your expenses & data to a local file, or restore a backup. Watch a rewarded ad to continue.'
+                        : adState.noFillThisLaunch
+                            ? 'NO ADS TODAY — AD-FREE. Download and restore your local data without watching an ad.'
+                            : 'Export your expenses & data to a local file, or restore a backup. No ad is required while unavailable.',
                     style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                   ),
                   const SizedBox(height: 12),
@@ -645,6 +746,8 @@ class MoreScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
+          const CloudBackupCard(),
+          const SizedBox(height: 16),
           Card(
             child: Column(
               children: [
@@ -757,9 +860,18 @@ class MoreScreen extends ConsumerWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
+                  leading: const Icon(Icons.privacy_tip_outlined, color: AppTheme.primaryColor),
+                  title: const Text('Privacy Policy', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('How your expense data, backups & sign-in are handled'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showPrivacyPolicyDialog(context),
+                ),
+                const Divider(height: 1),
+                ListTile(
                   leading: const Icon(Icons.info_outline, color: Colors.grey),
                   title: const Text('MyExpense Version'),
-                  subtitle: const Text('1.3.6+41 (Subcategory Details & Member Reports)'),
+                  subtitle: const Text('1.3.15+50 (Cloud Backup, Support & Play Updates)'),
+                  onTap: () => ref.read(supportActionsProvider.notifier).checkForAppUpdate(force: true),
                 ),
               ],
             ),
@@ -931,6 +1043,68 @@ class MoreScreen extends ConsumerWidget {
               }
             },
             child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPrivacyPolicyDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.privacy_tip_outlined, color: AppTheme.primaryColor),
+            SizedBox(width: 8),
+            Expanded(child: Text('Privacy Policy')),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'My Expence Book is designed with local-first privacy:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 10),
+              Text(
+                '• Local-First Data: Your expenses, budgets, categories, family profiles, receipts, and voice notes are stored locally on your device.',
+              ),
+              SizedBox(height: 8),
+              Text(
+                '• Free Local Backups: Local ZIP export and restore run completely on your device and never leave your phone unless you choose to share the file.',
+              ),
+              SizedBox(height: 8),
+              Text(
+                '• Google Sign-In: Used solely to authenticate your account and isolate your private cloud backup by your unique user ID.',
+              ),
+              SizedBox(height: 8),
+              Text(
+                '• Optional Paid Cloud Backup: If you subscribe (\$0.99/month or \$5.99/year), your compressed ZIP backup is stored privately under your own account.',
+              ),
+              SizedBox(height: 8),
+              Text(
+                '• Ads & Google Play Billing: Optional ads are served via Google AdMob, and in-app purchases (Remove Ads, Buy a Coffee, Cloud Backup plans) are processed securely by Google Play.',
+              ),
+              SizedBox(height: 8),
+              Text(
+                '• Delete Account & Data: You can sign out or permanently delete your local and cloud backup data anytime via Delete Account in Settings.',
+              ),
+              SizedBox(height: 10),
+              Text(
+                'Questions? Contact: muhammadfaysal.khan7@gmail.com',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
           ),
         ],
       ),

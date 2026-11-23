@@ -20,6 +20,7 @@ import 'package:myexpence/features/sms_parser/presentation/screens/share_sms_rev
 import 'package:myexpence/features/subscription/presentation/screens/paywall_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+GlobalKey<NavigatorState> get appNavigatorKey => _rootNavigatorKey;
 final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
 final GoRouter appRouter = GoRouter(

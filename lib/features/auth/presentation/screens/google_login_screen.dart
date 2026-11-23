@@ -258,7 +258,7 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                     Icon(Icons.shield, size: 16, color: Colors.grey[600]),
                     const SizedBox(width: 6),
                     Text(
-                      'Secured by Firebase Google Authentication',
+                      'Secured by Google Authentication',
                       style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                   ],

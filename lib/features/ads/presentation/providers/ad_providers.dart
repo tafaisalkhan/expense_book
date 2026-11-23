@@ -2,31 +2,61 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:myexpence/features/backup/monthly_backup_billing.dart';
 
 class AdState {
   final int navCount;
   final bool isShowingInterstitial;
   final bool isAdsRemoved;
+  final bool hasActiveSubscription;
+  final bool noFillThisLaunch;
+  final bool rewardedReady;
+  final bool sdkReady;
+  final bool isShowingRewarded;
+  final String? removeAdsPrice;
 
   const AdState({
     this.navCount = 0,
     this.isShowingInterstitial = false,
     this.isAdsRemoved = false,
+    this.hasActiveSubscription = false,
+    this.noFillThisLaunch = false,
+    this.rewardedReady = false,
+    this.sdkReady = false,
+    this.isShowingRewarded = false,
+    this.removeAdsPrice,
   });
+
+  bool get adsSuppressed => isAdsRemoved || hasActiveSubscription;
 
   AdState copyWith({
     int? navCount,
     bool? isShowingInterstitial,
     bool? isAdsRemoved,
+    bool? hasActiveSubscription,
+    bool? noFillThisLaunch,
+    bool? rewardedReady,
+    bool? sdkReady,
+    bool? isShowingRewarded,
+    String? removeAdsPrice,
   }) {
     return AdState(
       navCount: navCount ?? this.navCount,
-      isShowingInterstitial: isShowingInterstitial ?? this.isShowingInterstitial,
+      isShowingInterstitial:
+          isShowingInterstitial ?? this.isShowingInterstitial,
       isAdsRemoved: isAdsRemoved ?? this.isAdsRemoved,
+      hasActiveSubscription:
+          hasActiveSubscription ?? this.hasActiveSubscription,
+      noFillThisLaunch: noFillThisLaunch ?? this.noFillThisLaunch,
+      rewardedReady: rewardedReady ?? this.rewardedReady,
+      sdkReady: sdkReady ?? this.sdkReady,
+      isShowingRewarded: isShowingRewarded ?? this.isShowingRewarded,
+      removeAdsPrice: removeAdsPrice ?? this.removeAdsPrice,
     );
   }
 }
@@ -40,36 +70,176 @@ class AdNotifier extends StateNotifier<AdState> {
   InterstitialAd? _preloadedInterstitialAd;
   bool _isLoadingInterstitial = false;
   int _navCounter = 0;
-  Timer? _interstitialRetryTimer;
+  RewardedAd? _rewardedAd;
+  bool _isLoadingRewarded = false;
+  bool _started = false;
+  bool _noticeShown = false;
+  bool noAdsNoticeOpen = false;
+  Timer? _rewardedLoadTimeout;
+  Timer? _interstitialLoadTimeout;
+  final bool mobile;
+  final bool releaseBuild;
+  final Future<void> Function()? initializeAds;
+  final void Function(String, RewardedAdLoadCallback)? loadRewarded;
+  final void Function(String, InterstitialAdLoadCallback)? loadInterstitial;
+  final Future<String?> Function()? readAppId;
+  final bool enablePurchases;
 
-  AdNotifier() : super(const AdState()) {
-    _loadAdState();
-    _initInAppPurchase();
-    // Auto-retry preloading Interstitial Ad periodically so when internet becomes available,
-    // the ad is immediately loaded and ready for navigation transitions.
-    _interstitialRetryTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
-      if (!state.isAdsRemoved && _preloadedInterstitialAd == null && !_isLoadingInterstitial) {
-        _preloadInterstitialAd();
-      }
-    });
+  AdNotifier(
+      {bool autoStart = true,
+      bool? mobile,
+      this.releaseBuild = kReleaseMode,
+      this.initializeAds,
+      this.loadRewarded,
+      this.loadInterstitial,
+      this.readAppId,
+      this.enablePurchases = true})
+      : mobile = mobile ?? (!kIsWeb && (Platform.isAndroid || Platform.isIOS)),
+        super(const AdState()) {
+    if (autoStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(start());
+      });
+    }
   }
 
   static String get interstitialAdUnitId {
     if (!kIsWeb && Platform.isAndroid) {
-      return const String.fromEnvironment('ADMOB_INTERSTITIAL_ID', defaultValue: 'ca-app-pub-3940256099942544/1033173712');
+      return const String.fromEnvironment('ADMOB_INTERSTITIAL_ID',
+          defaultValue: 'ca-app-pub-3940256099942544/1033173712');
     } else if (!kIsWeb && Platform.isIOS) {
       return 'ca-app-pub-3940256099942544/4411468910';
     }
-    return const String.fromEnvironment('ADMOB_INTERSTITIAL_ID', defaultValue: 'ca-app-pub-3940256099942544/1033173712');
+    return const String.fromEnvironment('ADMOB_INTERSTITIAL_ID',
+        defaultValue: 'ca-app-pub-3940256099942544/1033173712');
   }
 
   static String get rewardedAdUnitId {
     if (!kIsWeb && Platform.isAndroid) {
-      return const String.fromEnvironment('ADMOB_REWARDED_ID', defaultValue: 'ca-app-pub-3940256099942544/5224354917');
+      return const String.fromEnvironment('ADMOB_REWARDED_ID',
+          defaultValue: 'ca-app-pub-3940256099942544/5224354917');
     } else if (!kIsWeb && Platform.isIOS) {
       return 'ca-app-pub-3940256099942544/1712485313';
     }
-    return const String.fromEnvironment('ADMOB_REWARDED_ID', defaultValue: 'ca-app-pub-3940256099942544/5224354917');
+    return const String.fromEnvironment('ADMOB_REWARDED_ID',
+        defaultValue: 'ca-app-pub-3940256099942544/5224354917');
+  }
+
+  static String get bannerAdUnitId =>
+      const String.fromEnvironment('ADMOB_BANNER_ID').isNotEmpty
+          ? const String.fromEnvironment('ADMOB_BANNER_ID')
+          : (!kIsWeb && Platform.isIOS
+              ? 'ca-app-pub-3940256099942544/2934735716'
+              : 'ca-app-pub-3940256099942544/6300978111');
+
+  static bool validReleaseId(String id) =>
+      id.startsWith('ca-app-pub-') && !id.contains('3940256099942544');
+
+  bool get adsAllowed =>
+      mounted &&
+      mobile &&
+      state.sdkReady &&
+      !state.adsSuppressed &&
+      !state.noFillThisLaunch;
+
+  /// Suppresses or restores ads dynamically when the Cloud Backup subscription changes.
+  void setSubscriptionActive(bool active) {
+    if (!mounted || state.hasActiveSubscription == active) return;
+    if (active) {
+      _rewardedLoadTimeout?.cancel();
+      _interstitialLoadTimeout?.cancel();
+      _rewardedAd?.dispose();
+      _rewardedAd = null;
+      _preloadedInterstitialAd?.dispose();
+      _preloadedInterstitialAd = null;
+      _isLoadingRewarded = false;
+      _isLoadingInterstitial = false;
+      state = state.copyWith(hasActiveSubscription: true, rewardedReady: false);
+    } else {
+      state = state.copyWith(hasActiveSubscription: false);
+      if (adsAllowed) {
+        _preloadRewardedAd();
+        _preloadInterstitialAd();
+      }
+    }
+  }
+
+  /// Starts only after the first frame. Billing and ads never delay runApp.
+  Future<void> start() async {
+    if (_started || !mounted) return;
+    _started = true;
+    await _loadAdState();
+    if (!mounted || !mobile) return;
+    if (enablePurchases) {
+      _initInAppPurchase();
+      unawaited(restorePurchases());
+      unawaited(_loadRemoveAdsPrice());
+    }
+    if (state.adsSuppressed || state.noFillThisLaunch) return;
+    if (releaseBuild &&
+        [interstitialAdUnitId, rewardedAdUnitId, bannerAdUnitId]
+            .any((id) => !validReleaseId(id))) {
+      markUnavailable();
+      return;
+    }
+    try {
+      // Read the installed Android manifest, not a possibly different Dart ID.
+      if (releaseBuild) {
+        final appId = await (readAppId?.call() ??
+                (Platform.isAndroid
+                    ? const MethodChannel('com.myexpense.book/ad_config')
+                        .invokeMethod<String>('getAppId')
+                    : Future.value(
+                        const String.fromEnvironment('ADMOB_APP_ID'))))
+            .timeout(const Duration(seconds: 5));
+        if (!mounted) return;
+        if (appId == null || !validReleaseId(appId)) {
+          markUnavailable();
+          return;
+        }
+      }
+      await (initializeAds?.call() ??
+              MobileAds.instance.initialize().then((_) {}))
+          .timeout(const Duration(seconds: 10));
+      if (!mounted || state.noFillThisLaunch || state.adsSuppressed) return;
+      state = state.copyWith(sdkReady: true);
+      _preloadRewardedAd();
+      _preloadInterstitialAd();
+    } catch (_) {
+      markUnavailable();
+    }
+  }
+
+  /// Sticky for this process only. A later callback can never re-enable ads.
+  void markUnavailable() {
+    if (!mounted || state.noFillThisLaunch || state.adsSuppressed) return;
+    _rewardedLoadTimeout?.cancel();
+    _interstitialLoadTimeout?.cancel();
+    _rewardedAd?.dispose();
+    _rewardedAd = null;
+    _preloadedInterstitialAd?.dispose();
+    _preloadedInterstitialAd = null;
+    _isLoadingRewarded = false;
+    _isLoadingInterstitial = false;
+    state = state.copyWith(noFillThisLaunch: true, rewardedReady: false);
+  }
+
+  bool claimNoAdsNotice() {
+    if (!state.noFillThisLaunch ||
+        state.adsSuppressed ||
+        _noticeShown ||
+        state.isShowingInterstitial ||
+        state.isShowingRewarded) {
+      return false;
+    }
+    _noticeShown = true;
+    noAdsNoticeOpen = true;
+    return true;
+  }
+
+  void finishNoAdsNotice() {
+    noAdsNoticeOpen = false;
+    if (mounted) state = state.copyWith();
   }
 
   Future<void> _loadAdState() async {
@@ -78,13 +248,9 @@ class AdNotifier extends StateNotifier<AdState> {
       await prefs.remove(_legacyPrefKeyAdsRemoved);
       await prefs.remove('ads_removed_product_v1');
       final isRemoved = prefs.getBool(_prefKeyAdsRemoved) ?? false;
+      if (!mounted) return;
       state = state.copyWith(isAdsRemoved: isRemoved);
     } catch (_) {}
-    // Re-sync with Google Play so genuine `remove_ads` owners are restored.
-    await restorePurchases();
-    if (!state.isAdsRemoved) {
-      _preloadInterstitialAd();
-    }
   }
 
   /// Reset ads removed state (useful for QA / testing to guarantee ads show)
@@ -97,12 +263,14 @@ class AdNotifier extends StateNotifier<AdState> {
     } catch (_) {}
     state = state.copyWith(isAdsRemoved: false);
     _preloadInterstitialAd();
+    _preloadRewardedAd();
   }
 
   void _initInAppPurchase() {
     if (kIsWeb) return;
     try {
-      final Stream<List<PurchaseDetails>> purchaseUpdated = InAppPurchase.instance.purchaseStream;
+      final Stream<List<PurchaseDetails>> purchaseUpdated =
+          InAppPurchase.instance.purchaseStream;
       _purchaseSub = purchaseUpdated.listen(
         (purchaseDetailsList) {
           _listenToPurchaseUpdated(purchaseDetailsList);
@@ -117,7 +285,8 @@ class AdNotifier extends StateNotifier<AdState> {
     }
   }
 
-  Future<void> _listenToPurchaseUpdated(List<PurchaseDetails> purchaseDetailsList) async {
+  Future<void> _listenToPurchaseUpdated(
+      List<PurchaseDetails> purchaseDetailsList) async {
     for (final purchaseDetails in purchaseDetailsList) {
       if (purchaseDetails.productID == removeAdsProductId) {
         if (purchaseDetails.status == PurchaseStatus.purchased ||
@@ -132,7 +301,10 @@ class AdNotifier extends StateNotifier<AdState> {
         } else if (purchaseDetails.status == PurchaseStatus.error) {
           final errStr = purchaseDetails.error?.message.toLowerCase() ?? '';
           final errCode = purchaseDetails.error?.code.toLowerCase() ?? '';
-          if (errCode.contains('already') || errStr.contains('already') || errCode.contains('owned') || errStr.contains('owned')) {
+          if (errCode.contains('already') ||
+              errStr.contains('already') ||
+              errCode.contains('owned') ||
+              errStr.contains('owned')) {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setBool(_prefKeyAdsRemoved, true);
             state = state.copyWith(isAdsRemoved: true);
@@ -149,12 +321,14 @@ class AdNotifier extends StateNotifier<AdState> {
       if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
         final bool isAvailable = await InAppPurchase.instance.isAvailable();
         if (isAvailable) {
-          final ProductDetailsResponse response =
-              await InAppPurchase.instance.queryProductDetails({removeAdsProductId});
+          final ProductDetailsResponse response = await InAppPurchase.instance
+              .queryProductDetails({removeAdsProductId});
           if (response.error == null && response.productDetails.isNotEmpty) {
             final ProductDetails productDetails = response.productDetails.first;
-            final PurchaseParam purchaseParam = PurchaseParam(productDetails: productDetails);
-            await InAppPurchase.instance.buyNonConsumable(purchaseParam: purchaseParam);
+            final PurchaseParam purchaseParam =
+                PurchaseParam(productDetails: productDetails);
+            await InAppPurchase.instance
+                .buyNonConsumable(purchaseParam: purchaseParam);
             return true;
           }
         }
@@ -193,484 +367,325 @@ class AdNotifier extends StateNotifier<AdState> {
     }
   }
 
+  Future<void> _loadRemoveAdsPrice() async {
+    if (!mounted || !mobile || !enablePurchases || state.adsSuppressed) return;
+    try {
+      final available = await InAppPurchase.instance
+          .isAvailable()
+          .timeout(const Duration(seconds: 10));
+      if (!available || !mounted) return;
+      final response = await InAppPurchase.instance
+          .queryProductDetails({removeAdsProductId})
+          .timeout(const Duration(seconds: 15));
+      if (mounted &&
+          response.error == null &&
+          response.productDetails.isNotEmpty) {
+        state = state.copyWith(
+          removeAdsPrice: response.productDetails.first.price,
+        );
+      }
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
-    _interstitialRetryTimer?.cancel();
+    _rewardedLoadTimeout?.cancel();
+    _interstitialLoadTimeout?.cancel();
     _purchaseSub?.cancel();
+    _rewardedAd?.dispose();
     _preloadedInterstitialAd?.dispose();
     super.dispose();
   }
 
-  /// Preloads an Interstitial Ad in advance so it can be shown immediately without delay
   void _preloadInterstitialAd() {
-    if (state.isAdsRemoved || kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
-    if (_preloadedInterstitialAd != null || _isLoadingInterstitial) return;
-
+    if (!adsAllowed ||
+        _isLoadingInterstitial ||
+        _preloadedInterstitialAd != null) {
+      return;
+    }
     _isLoadingInterstitial = true;
-    final unitId = interstitialAdUnitId;
-
+    _interstitialLoadTimeout =
+        Timer(const Duration(seconds: 15), markUnavailable);
+    final callbacks = InterstitialAdLoadCallback(
+      onAdLoaded: (ad) {
+        _interstitialLoadTimeout?.cancel();
+        _isLoadingInterstitial = false;
+        if (!adsAllowed) {
+          ad.dispose();
+          return;
+        }
+        _preloadedInterstitialAd = ad;
+      },
+      onAdFailedToLoad: (_) {
+        _interstitialLoadTimeout?.cancel();
+        _isLoadingInterstitial = false;
+        markUnavailable();
+      },
+    );
     try {
-      InterstitialAd.load(
-        adUnitId: unitId,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (ad) {
-            _isLoadingInterstitial = false;
-            _preloadedInterstitialAd = ad;
-            ad.fullScreenContentCallback = FullScreenContentCallback(
-              onAdDismissedFullScreenContent: (ad) {
-                ad.dispose();
-                _preloadedInterstitialAd = null;
-                state = state.copyWith(isShowingInterstitial: false);
-                _preloadInterstitialAd();
-              },
-              onAdFailedToShowFullScreenContent: (ad, err) {
-                ad.dispose();
-                _preloadedInterstitialAd = null;
-                state = state.copyWith(isShowingInterstitial: false);
-                _preloadInterstitialAd();
-              },
-            );
-          },
-          onAdFailedToLoad: (err) {
-            _isLoadingInterstitial = false;
-            _preloadedInterstitialAd = null;
-            debugPrint('Interstitial Ad load error ($unitId): $err');
-          },
-        ),
-      );
-    } catch (e) {
-      _isLoadingInterstitial = false;
-      debugPrint('InterstitialAd load exception: $e');
+      if (loadInterstitial != null) {
+        loadInterstitial!(interstitialAdUnitId, callbacks);
+      } else {
+        unawaited(InterstitialAd.load(
+                adUnitId: interstitialAdUnitId,
+                request: const AdRequest(),
+                adLoadCallback: callbacks)
+            .catchError((Object _) => markUnavailable()));
+      }
+    } catch (_) {
+      markUnavailable();
     }
   }
 
-  /// Call whenever the user navigates. Shows an interstitial ad every 2 navigations.
-  void recordNavigation(BuildContext context, [WidgetRef? ref]) {
-    if (state.isAdsRemoved) return;
-
-    _navCounter++;
-    final newCount = state.navCount + 1;
-    state = state.copyWith(navCount: newCount);
-
-    if (_preloadedInterstitialAd == null && !_isLoadingInterstitial) {
-      _preloadInterstitialAd();
+  void _preloadRewardedAd() {
+    if (!adsAllowed || _isLoadingRewarded || _rewardedAd != null) return;
+    _isLoadingRewarded = true;
+    _rewardedLoadTimeout = Timer(const Duration(seconds: 15), markUnavailable);
+    final callbacks = RewardedAdLoadCallback(
+      onAdLoaded: (ad) {
+        _rewardedLoadTimeout?.cancel();
+        _isLoadingRewarded = false;
+        if (!adsAllowed) {
+          ad.dispose();
+          return;
+        }
+        _rewardedAd = ad;
+        state = state.copyWith(rewardedReady: true);
+      },
+      onAdFailedToLoad: (_) {
+        _rewardedLoadTimeout?.cancel();
+        _isLoadingRewarded = false;
+        markUnavailable();
+      },
+    );
+    try {
+      if (loadRewarded != null) {
+        loadRewarded!(rewardedAdUnitId, callbacks);
+      } else {
+        unawaited(RewardedAd.load(
+                adUnitId: rewardedAdUnitId,
+                request: const AdRequest(),
+                rewardedAdLoadCallback: callbacks)
+            .catchError((Object _) => markUnavailable()));
+      }
+    } catch (_) {
+      markUnavailable();
     }
+  }
 
-    // Shows every 2 navigations
+  void recordNavigation(BuildContext context, [WidgetRef? ref]) {
+    if (!adsAllowed) return;
+    _navCounter++;
+    state = state.copyWith(navCount: state.navCount + 1);
     if (_navCounter >= 2) {
       _navCounter = 0;
-      if (!state.isShowingInterstitial && context.mounted) {
-        showInterstitialAd(context, ref);
-      }
+      if (context.mounted) showInterstitialAd(context, ref);
     }
   }
 
   void showInterstitialAd(BuildContext context, [WidgetRef? ref]) {
-    if (state.isAdsRemoved || kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
-
-    if (_preloadedInterstitialAd != null) {
-      state = state.copyWith(isShowingInterstitial: true);
-      _preloadedInterstitialAd!.show();
-      _preloadedInterstitialAd = null;
-    } else {
-      _loadAndShowInterstitial();
+    if (!adsAllowed || state.isShowingInterstitial || state.isShowingRewarded) {
+      return;
     }
-  }
-
-  void _loadAndShowInterstitial() {
-    if (state.isAdsRemoved || kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
+    final ad = _preloadedInterstitialAd;
+    if (ad == null) return;
+    _preloadedInterstitialAd = null;
     state = state.copyWith(isShowingInterstitial: true);
-    final unitId = interstitialAdUnitId;
-
-    try {
-      InterstitialAd.load(
-        adUnitId: unitId,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (ad) {
-            ad.fullScreenContentCallback = FullScreenContentCallback(
-              onAdDismissedFullScreenContent: (ad) {
-                ad.dispose();
-                state = state.copyWith(isShowingInterstitial: false);
-                _preloadInterstitialAd();
-              },
-              onAdFailedToShowFullScreenContent: (ad, err) {
-                ad.dispose();
-                state = state.copyWith(isShowingInterstitial: false);
-                _preloadInterstitialAd();
-              },
-            );
-            ad.show();
-          },
-          onAdFailedToLoad: (err) {
-            debugPrint('Google Interstitial Ad failed to load ($unitId): $err');
-            state = state.copyWith(isShowingInterstitial: false);
-          },
-        ),
-      );
-    } catch (e) {
-      debugPrint('InterstitialAd error: $e');
+    bool finished = false;
+    void finish({bool failed = false}) {
+      if (finished) return;
+      finished = true;
+      ad.dispose();
+      if (!mounted) return;
       state = state.copyWith(isShowingInterstitial: false);
+      if (failed) {
+        markUnavailable();
+      } else {
+        _preloadInterstitialAd();
+      }
+    }
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (_) => finish(),
+      onAdFailedToShowFullScreenContent: (_, __) => finish(failed: true),
+    );
+    try {
+      unawaited(ad.show().catchError((Object _) => finish(failed: true)));
+    } catch (_) {
+      finish(failed: true);
     }
   }
 
-  /// Requires user to watch a Rewarded Ad before running/unlocking a gated feature
-  /// If `remove_ads` product is purchased, bypasses ad check immediately!
+  /// Only a genuinely ready ad can gate a feature. No-fill grants access;
+  /// closing an available ad before earning its reward does not.
   void runWithRewardedAd(
     BuildContext context, {
     required String featureName,
     required VoidCallback onRewardGranted,
   }) {
-    if (state.isAdsRemoved || kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
+    if (!context.mounted || !mounted) return;
+    if (state.isShowingRewarded || state.isShowingInterstitial) return;
+    if (state.adsSuppressed || state.noFillThisLaunch || !mobile) {
       onRewardGranted();
       return;
     }
-
-    try {
-      RewardedAd.load(
-        adUnitId: rewardedAdUnitId,
-        request: const AdRequest(),
-        rewardedAdLoadCallback: RewardedAdLoadCallback(
-          onAdLoaded: (ad) {
-            ad.fullScreenContentCallback = FullScreenContentCallback(
-              onAdDismissedFullScreenContent: (ad) {
-                ad.dispose();
-              },
-              onAdFailedToShowFullScreenContent: (ad, err) {
-                ad.dispose();
-                _showRewardedFallbackDialog(context, featureName, onRewardGranted);
-              },
-            );
-            ad.show(
-              onUserEarnedReward: (AdWithoutView ad, RewardItem reward) {
-                onRewardGranted();
-              },
-            );
-          },
-          onAdFailedToLoad: (err) {
-            debugPrint('Rewarded Ad load error: $err');
-            _showRewardedFallbackDialog(context, featureName, onRewardGranted);
-          },
-        ),
-      );
-    } catch (e) {
-      debugPrint('RewardedAd exception: $e');
-      _showRewardedFallbackDialog(context, featureName, onRewardGranted);
+    final ad = _rewardedAd;
+    if (!state.rewardedReady || ad == null) {
+      markUnavailable();
+      onRewardGranted();
+      return;
     }
-  }
+    _rewardedAd = null;
+    state = state.copyWith(rewardedReady: false, isShowingRewarded: true);
+    bool earned = false;
+    bool finished = false;
+    bool granted = false;
+    void grant() {
+      if (granted || !mounted || !context.mounted) return;
+      granted = true;
+      onRewardGranted();
+    }
 
-  void _showRewardedFallbackDialog(
-    BuildContext context,
-    String featureName,
-    VoidCallback onRewardGranted,
-  ) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => _RewardedAdDialog(
-        featureName: featureName,
-        onWatchCompleted: () {
-          Navigator.of(ctx).pop();
-          onRewardGranted();
-        },
-        onRemoveAdsRequested: () async {
-          Navigator.of(ctx).pop();
-          await purchaseRemoveAds();
-          // Only grant access once Google Play has actually confirmed the purchase.
-          if (!state.isAdsRemoved) return;
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('🎉 Ads Removed permanently (`remove_ads`)! Access granted.'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
-          onRewardGranted();
-        },
-      ),
-    );
-  }
-}
-
-class _RewardedAdDialog extends StatefulWidget {
-  final String featureName;
-  final VoidCallback onWatchCompleted;
-  final VoidCallback onRemoveAdsRequested;
-
-  const _RewardedAdDialog({
-    required this.featureName,
-    required this.onWatchCompleted,
-    required this.onRemoveAdsRequested,
-  });
-
-  @override
-  State<_RewardedAdDialog> createState() => _RewardedAdDialogState();
-}
-
-class _RewardedAdDialogState extends State<_RewardedAdDialog> {
-  int _secondsRemaining = 3;
-  bool _isWatching = false;
-  Timer? _timer;
-
-  void _startWatchingAd() {
-    setState(() {
-      _isWatching = true;
-    });
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    void finish({bool failed = false}) {
+      if (finished) return;
+      finished = true;
+      ad.dispose();
       if (!mounted) return;
-      if (_secondsRemaining > 1) {
-        setState(() {
-          _secondsRemaining--;
-        });
-      } else {
-        _timer?.cancel();
-        widget.onWatchCompleted();
+      state = state.copyWith(isShowingRewarded: false);
+      if (failed) {
+        markUnavailable();
       }
-    });
-  }
+      if (earned || failed) grant();
+      if (!failed) _preloadRewardedAd();
+    }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Row(
-        children: [
-          const Icon(Icons.movie_filter, color: Colors.purple, size: 28),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Rewarded Ad — ${widget.featureName}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.purple.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.purple.shade200),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.stars, color: Colors.purple, size: 24),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Watch a short sponsored video to unlock "${widget.featureName}" or purchase Remove Ads (`remove_ads`) to skip all ads forever.',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          if (_isWatching)
-            Column(
-              children: [
-                LinearProgressIndicator(
-                  value: (3 - _secondsRemaining) / 3.0,
-                  backgroundColor: Colors.purple.shade100,
-                  color: Colors.purple,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '🎬 Watching Ad... ($_secondsRemaining sec)',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.purple),
-                ),
-              ],
-            )
-          else
-            const Text(
-              'Tap "Watch Rewarded Ad" to unlock feature now, or purchase "Remove Ads".',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
-            ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        if (!_isWatching) ...[
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.purple[800]),
-            onPressed: widget.onRemoveAdsRequested,
-            icon: const Icon(Icons.block, size: 16),
-            label: const Text('Remove Ads (\$4.99)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-          ),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purple,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: _startWatchingAd,
-            icon: const Icon(Icons.play_circle_fill, size: 18),
-            label: const Text('Watch Ad', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ],
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (_) => finish(),
+      onAdFailedToShowFullScreenContent: (_, __) => finish(failed: true),
     );
+    try {
+      unawaited(ad.show(onUserEarnedReward: (_, __) {
+        earned = true;
+        if (finished) grant();
+      }).catchError((Object _) => finish(failed: true)));
+    } catch (_) {
+      finish(failed: true);
+    }
   }
 }
 
 final adNotifierProvider = StateNotifierProvider<AdNotifier, AdState>((ref) {
-  return AdNotifier();
+  final notifier = AdNotifier();
+  ref.listen<bool>(
+    monthlyBackupBillingProvider.select((s) => s.active),
+    (_, active) => notifier.setSubscriptionActive(active),
+    fireImmediately: true,
+  );
+  return notifier;
 });
 
 final isAdsRemovedProvider = Provider<bool>((ref) {
   final adState = ref.watch(adNotifierProvider);
-  return adState.isAdsRemoved;
+  return adState.adsSuppressed;
 });
 
-/// Responsive Banner Widget (100% hidden if remove_ads product is purchased)
+/// Unavailable placements collapse entirely, including their SafeArea padding.
 class AdBannerWidget extends ConsumerStatefulWidget {
   final bool isTop;
   const AdBannerWidget({super.key, this.isTop = false});
-
   @override
   ConsumerState<AdBannerWidget> createState() => _AdBannerWidgetState();
 }
 
-class _AdBannerWidgetState extends ConsumerState<AdBannerWidget>
-    with WidgetsBindingObserver {
+class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
-  int _retryCount = 0;
-  Timer? _autoRetryTimer;
-
-  static String get bannerAdUnitId {
-    if (!kIsWeb && Platform.isAndroid) {
-      return const String.fromEnvironment('ADMOB_BANNER_ID', defaultValue: 'ca-app-pub-3940256099942544/6300978111');
-    } else if (!kIsWeb && Platform.isIOS) {
-      return 'ca-app-pub-3940256099942544/2934735716';
-    }
-    return const String.fromEnvironment('ADMOB_BANNER_ID', defaultValue: 'ca-app-pub-3940256099942544/6300978111');
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    if (widget.isTop) {
-      // Stagger top banner load slightly to avoid concurrent request clash with bottom banner
-      Future.delayed(const Duration(milliseconds: 350), () {
-        if (mounted) _loadBannerAd();
-      });
-    } else {
-      _loadBannerAd();
-    }
-
-    // Auto-retry periodically in case network was initially unavailable
-    _autoRetryTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
-      if (mounted && !_isAdLoaded) {
-        _retryCount = 0;
-        _loadBannerAd();
-      }
-    });
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && mounted && !_isAdLoaded) {
-      // Re-try ad load whenever user resumes the app (e.g. turned on Wi-Fi)
-      _retryCount = 0;
-      _loadBannerAd();
-    }
-  }
+  bool _requested = false;
+  Timer? _timeout;
 
   void _loadBannerAd() {
-    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
+    if (!mounted || _requested) return;
+    final notifier = ref.read(adNotifierProvider.notifier);
+    if (!notifier.adsAllowed) return;
+    _requested = true;
+    _timeout = Timer(const Duration(seconds: 15), notifier.markUnavailable);
     try {
-      _bannerAd?.dispose();
-      final unitId = bannerAdUnitId;
-
       _bannerAd = BannerAd(
-        adUnitId: unitId,
+        adUnitId: AdNotifier.bannerAdUnitId,
         size: AdSize.banner,
         request: const AdRequest(),
         listener: BannerAdListener(
           onAdLoaded: (ad) {
-            if (mounted) {
-              setState(() {
-                _isAdLoaded = true;
-              });
+            _timeout?.cancel();
+            if (!mounted) {
+              ad.dispose();
+              return;
             }
+            if (!ref.read(adNotifierProvider.notifier).adsAllowed) {
+              _bannerAd = null;
+              ad.dispose();
+              return;
+            }
+            setState(() => _isAdLoaded = true);
           },
           onAdFailedToLoad: (ad, error) {
-            debugPrint('Google BannerAd failed to load ($unitId): $error');
+            _timeout?.cancel();
             ad.dispose();
-            if (mounted) {
-              setState(() {
-                _isAdLoaded = false;
-                _bannerAd = null;
-              });
-              if (_retryCount < 3) {
-                _retryCount++;
-                Future.delayed(Duration(seconds: 4 * _retryCount), () {
-                  if (mounted && !_isAdLoaded) {
-                    _loadBannerAd();
-                  }
-                });
-              }
-            }
+            if (!mounted) return;
+            setState(() {
+              _bannerAd = null;
+              _isAdLoaded = false;
+            });
+            ref.read(adNotifierProvider.notifier).markUnavailable();
           },
         ),
       );
-      _bannerAd?.load();
-    } catch (e) {
-      debugPrint('BannerAd load error: $e');
+      unawaited(_bannerAd!
+          .load()
+          .catchError((Object _) => notifier.markUnavailable()));
+    } catch (_) {
+      notifier.markUnavailable();
     }
+  }
+
+  void _releaseBanner() {
+    _timeout?.cancel();
+    final ad = _bannerAd;
+    _bannerAd = null;
+    _isAdLoaded = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) => ad?.dispose());
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _autoRetryTimer?.cancel();
-    _bannerAd?.dispose();
+    _releaseBanner();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isAdsRemoved = ref.watch(isAdsRemovedProvider);
-
-    // 100% HIDDEN if user has purchased remove_ads product!
-    if (isAdsRemoved) {
+    final state = ref.watch(adNotifierProvider);
+    final notifier = ref.read(adNotifierProvider.notifier);
+    if (!notifier.mobile || state.adsSuppressed || state.noFillThisLaunch) {
+      if (_bannerAd != null) _releaseBanner();
       return const SizedBox.shrink();
     }
-
-    // Only mobile platforms (Android/iOS) support Google Mobile Ads
-    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
-      return const SizedBox.shrink();
+    if (state.sdkReady && !_requested) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadBannerAd());
     }
-
-    if (_isAdLoaded && _bannerAd != null) {
-      return Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        alignment: Alignment.center,
-        width: _bannerAd!.size.width.toDouble(),
-        height: _bannerAd!.size.height.toDouble(),
-        child: AdWidget(ad: _bannerAd!),
-      );
-    }
-
-    // While loading or if fill is not available, render zero height to avoid layout shift
-    return const SizedBox.shrink();
+    if (!_isAdLoaded || _bannerAd == null) return const SizedBox.shrink();
+    return SafeArea(
+      top: widget.isTop,
+      bottom: !widget.isTop,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Center(
+            child: SizedBox(
+          width: _bannerAd!.size.width.toDouble(),
+          height: _bannerAd!.size.height.toDouble(),
+          child: AdWidget(ad: _bannerAd!),
+        )),
+      ),
+    );
   }
 }

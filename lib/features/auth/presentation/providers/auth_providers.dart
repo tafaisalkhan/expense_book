@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:myexpence/core/config/firebase_config.dart';
+import 'package:myexpence/features/backup/backup_scheduler.dart';
+import 'package:myexpence/features/backup/cloud_backup_service.dart';
 import 'package:myexpence/core/providers/core_providers.dart';
 import 'package:myexpence/features/auth/domain/models/auth_user.dart';
 import 'package:myexpence/features/budgets/presentation/providers/budget_providers.dart';
@@ -63,6 +65,13 @@ class AuthNotifier extends StateNotifier<AuthUser> {
   AuthNotifier([this._ref]) : super(AuthUser.anonymous()) {
     _loadAuthState();
     _listenToAuthChanges();
+  }
+
+  /// Used only by the separate debug preview, with no live account/session.
+  AuthNotifier.localPreview() : _ref = null, super(const AuthUser(
+    uid: 'local_preview', displayName: 'Local preview', isLoggedIn: true,
+  )) {
+    if (kReleaseMode) throw StateError('Local previews cannot run in release mode.');
   }
 
   void _listenToAuthChanges() {
@@ -276,7 +285,7 @@ class AuthNotifier extends StateNotifier<AuthUser> {
       final firebaseUser = userCredential.user;
       if (firebaseUser == null) {
         _lastSignInError =
-            'Firebase could not authenticate this Google account.';
+            'Could not authenticate this Google account.';
         return false;
       }
 
@@ -297,7 +306,7 @@ class AuthNotifier extends StateNotifier<AuthUser> {
       debugPrint(stack.toString());
     } on FirebaseAuthException catch (e, stack) {
       _lastSignInError =
-          'Firebase authentication failed (${e.code}). ${e.message ?? ''}'
+          'Google authentication failed (${e.code}). ${e.message ?? ''}'
               .trim();
       debugPrint('Firebase Auth Exception: $e');
       debugPrint(stack.toString());
@@ -335,6 +344,7 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     _currentSessionToken = _generateSessionToken();
 
     final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_keyUserUid) != uid) await BackupScheduler.disable();
     await prefs.setBool(_keyIsLoggedIn, true);
     await prefs.setString(_keyUserEmail, email);
     await prefs.setString(_keyUserUid, uid);
@@ -350,27 +360,14 @@ class AuthNotifier extends StateNotifier<AuthUser> {
 
     await _registerAndListenActiveSession(email);
 
-    // Only auto-restore from cloud on a brand new empty database
-    if (_ref != null) {
-      try {
-        final db = _ref.read(appDatabaseProvider);
-        final currentExpenses =
-            await (await db.database).query('expenses', limit: 1);
-        if (currentExpenses.isEmpty) {
-          final backupService = FirebaseCloudBackupService();
-          await backupService.restoreDataFromFirebase(_ref,
-              optionalEmail: email);
-        }
-      } catch (e) {
-        debugPrint('Cloud restore notice on sign in: $e');
-      }
-      _invalidateAllDataProviders();
-    }
+    // Cloud restore is explicit, confirmed by the user, and monthly-verified.
+    if (_ref != null) _invalidateAllDataProviders();
 
     return true;
   }
 
   Future<void> clearAllLocalData() async {
+    await BackupScheduler.disable();
     try {
       await FirebaseCloudBackupService().deleteLocalBackupZip();
     } catch (_) {}
@@ -386,6 +383,7 @@ class AuthNotifier extends StateNotifier<AuthUser> {
   }
 
   Future<void> signOut({String? reason, bool clearLocalData = true}) async {
+    await BackupScheduler.disable();
     _sessionPollTimer?.cancel();
     _sessionPollTimer = null;
 
@@ -456,6 +454,7 @@ class AuthNotifier extends StateNotifier<AuthUser> {
   }
 
   Future<bool> deleteAccount() async {
+    await BackupScheduler.disable();
     final String? targetEmail = state.email;
     final String targetUid = state.uid;
 
@@ -465,6 +464,11 @@ class AuthNotifier extends StateNotifier<AuthUser> {
     _activeSessionSub?.cancel();
     _activeSessionSub = null;
     _currentSessionToken = null;
+
+    await CloudBackupService()
+        .deleteUserData()
+        .timeout(const Duration(seconds: 2), onTimeout: () {})
+        .catchError((_) {});
 
     // 1. Launch non-blocking remote cloud data purge in background
     unawaited(

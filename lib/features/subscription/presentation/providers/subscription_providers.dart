@@ -10,6 +10,10 @@ class SubscriptionNotifier extends StateNotifier<UserSubscription> {
     _loadSubscription();
   }
 
+  SubscriptionNotifier.localPreview() : super(const UserSubscription()) {
+    if (kReleaseMode) throw StateError('Local previews cannot run in release mode.');
+  }
+
   static const String _prefKeyTier = 'user_sub_tier';
   static const String _prefKeyExpiry = 'user_sub_expiry';
   static const String _prefKeyTrialStart = 'user_sub_trial_start';

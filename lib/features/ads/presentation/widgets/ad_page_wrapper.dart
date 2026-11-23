@@ -20,10 +20,9 @@ class AdPageWrapper extends StatelessWidget {
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
         children: [
-          const SafeArea(bottom: false, child: AdBannerWidget(isTop: true)), // Top Banner
+          const AdBannerWidget(isTop: true),
           Expanded(child: child),
-          if (!keyboardOpen)
-            const SafeArea(top: false, child: AdBannerWidget()), // Bottom Banner
+          if (!keyboardOpen) const AdBannerWidget(),
         ],
       ),
     );

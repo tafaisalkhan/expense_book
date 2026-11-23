@@ -23,6 +23,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:myexpence/features/receipts/domain/models/receipt.dart';
 import 'package:myexpence/core/utils/math_evaluator.dart';
+import 'package:myexpence/features/document_scanner/presentation/widgets/voice_expense_sheet.dart';
 import 'package:myexpence/features/expenses/presentation/widgets/expense_voice_note_widget.dart';
 import 'package:myexpence/features/expenses/presentation/widgets/multi_item_picker_sheet.dart';
 import 'package:myexpence/features/settings/presentation/providers/settings_providers.dart';
@@ -655,6 +656,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         title:
             Text(widget.expenseToEdit != null ? 'Edit Expense' : 'Add Expense'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.mic_rounded),
+            tooltip: 'Voice to Expense (10s)',
+            onPressed: () => showVoiceExpenseSheet(context),
+          ),
           IconButton(
             icon: const Icon(Icons.receipt_long),
             tooltip: 'Share / Attach Receipt Slip',

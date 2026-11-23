@@ -1,8 +1,12 @@
 class FirebaseConfig {
-  static const String projectId = 'myexpenses-d3cb0';
-  static const String clientEmail = 'firebase-adminsdk-fbsvc@myexpenses-d3cb0.iam.gserviceaccount.com';
-  static const String clientId = '106822137642666279953';
-  static const String privateKeyId = '5e9420aec652069368a9892adb3445225d39d1b4';
+  static const String projectId =
+      String.fromEnvironment('FIREBASE_PROJECT_ID', defaultValue: '');
+  static const String clientEmail =
+      String.fromEnvironment('FIREBASE_CLIENT_EMAIL', defaultValue: '');
+  static const String clientId =
+      String.fromEnvironment('FIREBASE_CLIENT_ID', defaultValue: '');
+  static const String privateKeyId =
+      String.fromEnvironment('FIREBASE_PRIVATE_KEY_ID', defaultValue: '');
   static const String authUri = 'https://accounts.google.com/o/oauth2/auth';
   static const String tokenUri = 'https://oauth2.googleapis.com/token';
   static const String serviceAccountAssetPath = 'assets/config/firebase_service_account.json';

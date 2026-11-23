@@ -67,9 +67,10 @@ void main() {
 
     test('Firebase Service Account configuration is valid', () {
       final map = FirebaseConfig.toMap();
-      expect(map['project_id'], 'myexpenses-d3cb0');
-      expect(map['client_email'], 'firebase-adminsdk-fbsvc@myexpenses-d3cb0.iam.gserviceaccount.com');
-      expect(map['client_id'], '106822137642666279953');
+      expect(map['type'], 'service_account');
+      expect(map.containsKey('project_id'), true);
+      expect(map.containsKey('client_email'), true);
+      expect(map.containsKey('client_id'), true);
     });
   });
 }

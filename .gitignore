@@ -29,6 +29,8 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/firebase-backend/node_modules/
+/firebase-backend/.env*
 
 # Symbolication related
 app.*.symbols
@@ -89,3 +91,8 @@ admob_secrets.json
 build/
 *.aab
 *.apk
+
+# Node dependencies
+node_modules/
+docs/firebase_backup_setup.md
+firebase-backend/
