@@ -160,7 +160,23 @@ class CloudBackupBilling extends StateNotifier<CloudBackupBillingState> {
   Future<void> refresh() async {
     if (preview || !mounted) return;
     final generation = ++_refreshGeneration;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid;
+    final isVipOwner = CloudBackupService.isVipOwnerUser(user);
+    if (isVipOwner && uid != null) {
+      state = CloudBackupBillingState(
+        active: true,
+        activeProductId: CloudBackupService.yearlyProductId,
+        monthlyProduct: state.monthlyProduct,
+        yearlyProduct: state.yearlyProduct,
+        monthlyRecurringPrice: state.monthlyRecurringPrice,
+        yearlyRecurringPrice: state.yearlyRecurringPrice,
+        checking: false,
+        preview: preview,
+        expiresAt: DateTime.now().add(const Duration(days: 3650)),
+      );
+      unawaited(BackupScheduler.ensureVipOwnerHourlySchedule());
+    }
     try {
       final result = await service.access();
       if (!mounted ||
@@ -168,21 +184,42 @@ class CloudBackupBilling extends StateNotifier<CloudBackupBillingState> {
           FirebaseAuth.instance.currentUser?.uid != uid) {
         return;
       }
-      final active = result['active'] == true;
+      final active = isVipOwner || result['active'] == true;
       state = CloudBackupBillingState(
         active: active,
-        activeProductId: result['productId'] as String?,
+        activeProductId: isVipOwner
+            ? CloudBackupService.yearlyProductId
+            : (result['productId'] as String?),
         monthlyProduct: state.monthlyProduct,
         yearlyProduct: state.yearlyProduct,
         monthlyRecurringPrice: state.monthlyRecurringPrice,
         yearlyRecurringPrice: state.yearlyRecurringPrice,
         checking: false,
         preview: preview,
-        expiresAt: DateTime.tryParse(result['expiresAt'] as String? ?? ''),
+        expiresAt: DateTime.tryParse(result['expiresAt'] as String? ?? '') ??
+            (isVipOwner ? DateTime.now().add(const Duration(days: 3650)) : null),
       );
-      if (!active) await BackupScheduler.disable();
+      if (isVipOwner) {
+        unawaited(BackupScheduler.ensureVipOwnerHourlySchedule());
+      } else if (!active) {
+        await BackupScheduler.disable();
+      }
     } catch (_) {
       if (!mounted || generation != _refreshGeneration) return;
+      if (isVipOwner && uid != null) {
+        state = CloudBackupBillingState(
+          active: true,
+          activeProductId: CloudBackupService.yearlyProductId,
+          monthlyProduct: state.monthlyProduct,
+          yearlyProduct: state.yearlyProduct,
+          monthlyRecurringPrice: state.monthlyRecurringPrice,
+          yearlyRecurringPrice: state.yearlyRecurringPrice,
+          checking: false,
+          preview: preview,
+          expiresAt: DateTime.now().add(const Duration(days: 3650)),
+        );
+        return;
+      }
       state = CloudBackupBillingState(
         monthlyProduct: state.monthlyProduct,
         yearlyProduct: state.yearlyProduct,

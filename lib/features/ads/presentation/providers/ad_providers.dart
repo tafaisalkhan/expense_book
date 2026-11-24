@@ -63,6 +63,9 @@ class AdState {
 
 class AdNotifier extends StateNotifier<AdState> {
   static const String removeAdsProductId = 'remove_ads';
+  static const int interstitialEveryNNavigations = 3;
+  static const int minInterstitialIntervalSec = 120;
+  static const int maxInterstitialsPerHour = 10;
   // Version bumped to v3 to ensure any accidentally set flag from earlier local testing is cleared
   static const String _prefKeyAdsRemoved = 'ads_removed_product_v3';
   static const String _legacyPrefKeyAdsRemoved = 'ads_removed_product_v2';
@@ -70,6 +73,9 @@ class AdNotifier extends StateNotifier<AdState> {
   InterstitialAd? _preloadedInterstitialAd;
   bool _isLoadingInterstitial = false;
   int _navCounter = 0;
+  bool _firstNavSkipped = false;
+  DateTime? _lastInterstitialShownAt;
+  final List<DateTime> _interstitialHourlyTimestamps = <DateTime>[];
   RewardedAd? _rewardedAd;
   bool _isLoadingRewarded = false;
   bool _started = false;
@@ -475,21 +481,51 @@ class AdNotifier extends StateNotifier<AdState> {
 
   void recordNavigation(BuildContext context, [WidgetRef? ref]) {
     if (!adsAllowed) return;
-    _navCounter++;
     state = state.copyWith(navCount: state.navCount + 1);
-    if (_navCounter >= 2) {
-      _navCounter = 0;
-      if (context.mounted) showInterstitialAd(context, ref);
+    // First-navigation interstitial: Disabled
+    if (!_firstNavSkipped) {
+      _firstNavSkipped = true;
+      return;
+    }
+    _navCounter++;
+    if (_navCounter >= interstitialEveryNNavigations) {
+      if (_canShowInterstitialNow()) {
+        _navCounter = 0;
+        if (context.mounted) showInterstitialAd(context, ref);
+      }
     }
   }
 
-  void showInterstitialAd(BuildContext context, [WidgetRef? ref]) {
+  bool _canShowInterstitialNow() {
     if (!adsAllowed || state.isShowingInterstitial || state.isShowingRewarded) {
+      return false;
+    }
+    final now = DateTime.now();
+    // Minimum interval between interstitials: 120 seconds
+    if (_lastInterstitialShownAt != null &&
+        now.difference(_lastInterstitialShownAt!).inSeconds <
+            minInterstitialIntervalSec) {
+      return false;
+    }
+    // Maximum interstitials per hour: 10 (rolling 3600s window)
+    _interstitialHourlyTimestamps
+        .removeWhere((t) => now.difference(t).inSeconds >= 3600);
+    if (_interstitialHourlyTimestamps.length >= maxInterstitialsPerHour) {
+      return false;
+    }
+    return true;
+  }
+
+  void showInterstitialAd(BuildContext context, [WidgetRef? ref]) {
+    if (!_canShowInterstitialNow()) {
       return;
     }
     final ad = _preloadedInterstitialAd;
     if (ad == null) return;
     _preloadedInterstitialAd = null;
+    final now = DateTime.now();
+    _lastInterstitialShownAt = now;
+    _interstitialHourlyTimestamps.add(now);
     state = state.copyWith(isShowingInterstitial: true);
     bool finished = false;
     void finish({bool failed = false}) {

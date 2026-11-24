@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:myexpence/features/ads/presentation/providers/ad_providers.dart';
 
-/// Wraps a full-screen route (outside the main shell) with a top and bottom
-/// banner ad so that every navigation destination shows ads.
-///
-/// - Top banner sits below the status bar; the child's top padding is removed
-///   so its AppBar does not add a second status-bar gap.
-/// - Bottom banner is hidden while the keyboard is open so forms stay usable.
+/// Wraps a full-screen route (outside the main shell) with a single bottom
+/// banner ad (one per screen, away from controls, hidden while keyboard is open).
 class AdPageWrapper extends StatelessWidget {
   final Widget child;
 
@@ -20,7 +16,6 @@ class AdPageWrapper extends StatelessWidget {
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
         children: [
-          const AdBannerWidget(isTop: true),
           Expanded(child: child),
           if (!keyboardOpen) const AdBannerWidget(),
         ],

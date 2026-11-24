@@ -280,6 +280,9 @@ class _CloudBackupCardState extends ConsumerState<CloudBackupCard>
                       items: const [
                         DropdownMenuItem(value: 'off', child: Text('Off')),
                         DropdownMenuItem(
+                            value: 'hourly',
+                            child: Text('Every 1 hour (VIP Auto-Sync)')),
+                        DropdownMenuItem(
                             value: 'daily',
                             child: Text('Every day at 12:00 PM')),
                         DropdownMenuItem(
@@ -295,9 +298,11 @@ class _CloudBackupCardState extends ConsumerState<CloudBackupCard>
                                       wifiOnly: wifiOnly);
                                   return value == 'off'
                                       ? 'Automatic backup turned off.'
-                                      : value == 'weekly'
-                                          ? 'Scheduled weekly 12:00 PM ZIP cloud backup.'
-                                          : 'Scheduled daily 12:00 PM ZIP cloud backup.';
+                                      : value == 'hourly'
+                                          ? 'Scheduled automatic 1-hour ZIP cloud backup.'
+                                          : value == 'weekly'
+                                              ? 'Scheduled weekly 12:00 PM ZIP cloud backup.'
+                                              : 'Scheduled daily 12:00 PM ZIP cloud backup.';
                                 });
                               }
                             }),

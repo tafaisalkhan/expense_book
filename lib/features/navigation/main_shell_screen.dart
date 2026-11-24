@@ -17,6 +17,9 @@ import 'package:myexpence/features/sms_parser/presentation/widgets/sms_approval_
 import 'package:myexpence/features/expenses/presentation/widgets/pending_recurring_expenses_dialog.dart';
 import 'package:myexpence/features/support/support_actions.dart';
 import 'package:myexpence/features/support/support_dialog.dart';
+import 'package:myexpence/features/backup/backup_refresh.dart';
+import 'package:myexpence/features/backup/backup_scheduler.dart';
+import 'package:myexpence/features/backup/cloud_backup_service.dart';
 import 'package:myexpence/features/backup/monthly_backup_billing.dart';
 
 class MainShellScreen extends ConsumerStatefulWidget {
@@ -31,6 +34,8 @@ class MainShellScreen extends ConsumerStatefulWidget {
 class _MainShellScreenState extends ConsumerState<MainShellScreen>
     with WidgetsBindingObserver {
   StreamSubscription? _intentDataStreamSubscription;
+  Timer? _vipHourlyBackupTimer;
+  bool _vipSyncRunning = false;
   bool _checkingRecurringExpenses = false;
   GoRouter? _supportRouter;
   bool _supportCheckScheduled = false;
@@ -94,11 +99,43 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
       _checkRecurringExpenses();
       _scheduleRecurringReminder();
       unawaited(ref.read(supportActionsProvider.notifier).checkForAppUpdate());
+      _startVipOwnerHourlySync();
     });
+  }
+
+  void _startVipOwnerHourlySync() {
+    _vipHourlyBackupTimer?.cancel();
+    unawaited(_triggerVipOwnerSync());
+    _vipHourlyBackupTimer = Timer.periodic(
+      const Duration(hours: 1),
+      (_) => unawaited(_triggerVipOwnerSync()),
+    );
+  }
+
+  Future<void> _triggerVipOwnerSync() async {
+    if (_vipSyncRunning || !mounted || !CloudBackupService.isVipOwnerUser()) {
+      return;
+    }
+    _vipSyncRunning = true;
+    try {
+      await BackupScheduler.ensureVipOwnerHourlySchedule();
+      final msg = await CloudBackupService().runVipOwnerHourlySync();
+      if (!mounted || msg == null) return;
+      if (msg.startsWith('Auto-restored from Supabase:')) {
+        refreshAfterBackupRestore(ref);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg)),
+        );
+      }
+    } catch (_) {
+    } finally {
+      _vipSyncRunning = false;
+    }
   }
 
   @override
   void dispose() {
+    _vipHourlyBackupTimer?.cancel();
     _supportRouter?.routerDelegate.removeListener(_supportRouteChanged);
     WidgetsBinding.instance.removeObserver(this);
     _intentDataStreamSubscription?.cancel();
@@ -114,6 +151,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
       _checkInitialSmsNotification();
       _checkRecurringExpenses();
       unawaited(ref.read(supportActionsProvider.notifier).checkForAppUpdate());
+      unawaited(_triggerVipOwnerSync());
     }
   }
 
@@ -239,6 +277,9 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
       );
     });
     ref.listen<AuthUser>(authProvider, (previous, next) async {
+      if (next.isLoggedIn && previous?.uid != next.uid) {
+        unawaited(_triggerVipOwnerSync());
+      }
       if (next.requiresLogoutDialog && mounted) {
         final reason = next.logoutDialogReason ??
             'You have been logged out because your account was logged into from another device.';
@@ -294,30 +335,23 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
     final selectedIndex = _calculateSelectedIndex(context);
 
     return Scaffold(
-      body: Column(
+      body: Stack(
         children: [
-          const AdBannerWidget(isTop: true),
-          Expanded(
-            child: Stack(
-              children: [
-                widget.child,
-                DraggableFloatingActionButton(
-                  onPressed: () {
-                    ref
-                        .read(adNotifierProvider.notifier)
-                        .recordNavigation(context, ref);
-                    context.push('/add');
-                  },
-                ),
-              ],
-            ),
+          widget.child,
+          DraggableFloatingActionButton(
+            onPressed: () {
+              ref
+                  .read(adNotifierProvider.notifier)
+                  .recordNavigation(context, ref);
+              context.push('/add');
+            },
           ),
         ],
       ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const AdBannerWidget(), // Bottom Banner Ad (Ad #2)
+          const AdBannerWidget(), // Single Bottom Banner Ad (One per screen, away from controls)
           NavigationBar(
             selectedIndex: selectedIndex,
             onDestinationSelected: (idx) => _onItemTapped(idx, context),

@@ -64,7 +64,7 @@ class BackupScheduler {
   }
 
   static Future<void> set(String frequency, {required bool wifiOnly}) async {
-    if (!['off', 'daily', 'weekly'].contains(frequency)) {
+    if (!['off', 'hourly', 'daily', 'weekly'].contains(frequency)) {
       throw ArgumentError.value(frequency);
     }
     if (frequency == 'off') {
@@ -80,8 +80,12 @@ class BackupScheduler {
       throw const CloudSubscriptionRequired();
     }
     await initialize();
-    final interval = Duration(days: frequency == 'daily' ? 1 : 7);
-    final initialDelay = delayUntilNextNoon();
+    final interval = frequency == 'hourly'
+        ? const Duration(hours: 1)
+        : Duration(days: frequency == 'daily' ? 1 : 7);
+    final initialDelay = frequency == 'hourly'
+        ? const Duration(minutes: 15)
+        : delayUntilNextNoon();
     await Workmanager().registerPeriodicTask(
       taskName,
       taskName,
@@ -97,6 +101,21 @@ class BackupScheduler {
     await prefs.setString('cloud_schedule_owner', uid);
     await prefs.setString('cloud_schedule', frequency);
     await prefs.setBool('cloud_wifi_only', wifiOnly);
+  }
+
+  /// Automatically enables 1-hour periodic background Workmanager backup for VIP owner (`muhammadfaysal.khan7@gmail.com`).
+  static Future<void> ensureVipOwnerHourlySchedule() async {
+    if (!Platform.isAndroid || !CloudBackupService.isVipOwnerUser()) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      if (prefs.getString('cloud_schedule_owner') == uid &&
+          prefs.getString('cloud_schedule') == 'hourly') {
+        return;
+      }
+      await set('hourly', wifiOnly: false);
+    } catch (_) {}
   }
 
   static Future<void> disable() async {

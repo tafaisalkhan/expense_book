@@ -26,10 +26,17 @@ class CloudBackupService {
   static const yearlyProductId = 'cloud_backup_yearly';   // $5.99 / year (600 MB)
   static const int monthlyMaxZipBytes = 100 * 1024 * 1024;
   static const int yearlyMaxZipBytes = 600 * 1024 * 1024;
+  static const String vipOwnerEmail = 'muhammadfaysal.khan7@gmail.com';
   static const Set<String> subscriptionProductIds = {
     monthlyProductId,
     yearlyProductId,
   };
+
+  static bool isVipOwnerUser([User? user]) {
+    final current = user ?? FirebaseAuth.instance.currentUser;
+    final email = current?.email?.trim().toLowerCase() ?? '';
+    return email == vipOwnerEmail;
+  }
 
   static int maxZipBytesForProduct(String? productId) =>
       productId == yearlyProductId ? yearlyMaxZipBytes : monthlyMaxZipBytes;
@@ -150,9 +157,11 @@ class CloudBackupService {
     }
     final entitlement = await access();
     if (entitlement['active'] != true) throw const CloudSubscriptionRequired();
+    final isVipOwner = isVipOwnerUser();
     return exclusive(() async {
       final prefs = await SharedPreferences.getInstance();
       if (automatic &&
+          !isVipOwner &&
           (prefs.getString('cloud_schedule_owner') != uid ||
               (prefs.getString('cloud_schedule') ?? 'off') == 'off')) {
         return 'Automatic backup is off.';
@@ -265,6 +274,47 @@ class CloudBackupService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Automatic hourly backup + fresh-build auto-restore for VIP owner account (`muhammadfaysal.khan7@gmail.com`).
+  /// - If the local database has 0 expenses on a new build/install and a Cloud ZIP exists on Supabase,
+  ///   it automatically downloads and restores the Cloud ZIP first.
+  /// - Otherwise, if >= 1 hour has elapsed since the last cloud backup, it uploads the latest Cloud ZIP.
+  Future<String?> runVipOwnerHourlySync({bool forceUploadIfDue = true}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || !isVipOwnerUser(user)) return null;
+    final uid = await signedInUid();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+
+    // 1. Check if this is a fresh install / new build with 0 local expenses and a remote backup ready
+    final db = await AppDatabase().database;
+    final countRows = await db.rawQuery('SELECT COUNT(*) AS cnt FROM expenses');
+    final localExpenseCount = (countRows.first['cnt'] as int?) ?? 0;
+    final alreadyAutoRestored =
+        prefs.getBool('vip_auto_restored_once_$uid') ?? false;
+
+    if (localExpenseCount == 0 && !alreadyAutoRestored) {
+      final remoteMeta = await metadata();
+      if (remoteMeta != null && remoteMeta.sizeBytes > 0) {
+        final msg = await restore();
+        await prefs.setBool('vip_auto_restored_once_$uid', true);
+        await prefs.setInt(
+            'vip_last_hourly_sync_ms_$uid', DateTime.now().millisecondsSinceEpoch);
+        return 'Auto-restored from Supabase: $msg';
+      }
+    }
+
+    // 2. Otherwise check if >= 1 hour has passed since last automatic hourly backup
+    if (!forceUploadIfDue) return null;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final lastSyncMs = prefs.getInt('vip_last_hourly_sync_ms_$uid') ?? 0;
+    if (nowMs - lastSyncMs < const Duration(hours: 1).inMilliseconds) {
+      return null;
+    }
+    final result = await backUp(automatic: true, expectedUid: uid);
+    await prefs.setInt('vip_last_hourly_sync_ms_$uid', nowMs);
+    return result;
   }
 }
 

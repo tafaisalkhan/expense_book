@@ -15,6 +15,7 @@ const PLAY_SA_JSON = Deno.env.get("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON") ?? "";
 const ALLOWED_PRODUCTS = new Set(["cloud_backup_monthly_v2", "cloud_backup_monthly", "cloud_backup_yearly"]);
 const MONTHLY_MAX_BYTES = 100 * 1024 * 1024; // 100 MB ($0.99/mo)
 const YEARLY_MAX_BYTES = 600 * 1024 * 1024;  // 600 MB ($5.99/yr)
+const VIP_OWNER_EMAILS = new Set(["muhammadfaysal.khan7@gmail.com"]);
 
 function maxBytesForProduct(productId: string | null | undefined): number {
   return productId === "cloud_backup_yearly" ? YEARLY_MAX_BYTES : MONTHLY_MAX_BYTES;
@@ -25,7 +26,7 @@ const FIREBASE_JWKS = createRemoteJWKSet(
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-async function verifyFirebaseUser(authHeader: string | null): Promise<string> {
+async function verifyFirebaseUser(authHeader: string | null): Promise<{ uid: string; email: string }> {
   if (!authHeader?.startsWith("Bearer ")) {
     throw new Response(JSON.stringify({ error: "Missing Firebase ID token" }), { status: 401 });
   }
@@ -36,7 +37,8 @@ async function verifyFirebaseUser(authHeader: string | null): Promise<string> {
   });
   const uid = payload.sub;
   if (!uid) throw new Response(JSON.stringify({ error: "Invalid Firebase token" }), { status: 401 });
-  return uid;
+  const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
+  return { uid, email };
 }
 
 function base64UrlEncode(value: string): string {
@@ -111,11 +113,30 @@ async function verifyPlaySubscription(productId: string, purchaseToken: string):
 
 serve(async (req) => {
   try {
-    const uid = await verifyFirebaseUser(req.headers.get("Authorization"));
+    const { uid, email } = await verifyFirebaseUser(req.headers.get("Authorization"));
+    const isVipOwner = VIP_OWNER_EMAILS.has(email);
+    const vipExpiresAt = new Date(Date.now() + 3650 * 24 * 3600 * 1000).toISOString();
     const body = await req.json();
     const action = body.action as string;
 
     if (action === "access") {
+      if (isVipOwner) {
+        await supabase.from("user_subscriptions").upsert({
+          firebase_uid: uid,
+          product_id: "cloud_backup_yearly",
+          purchase_token: `vip_owner_${uid}`,
+          status: "active",
+          expires_at: vipExpiresAt,
+          updated_at: new Date().toISOString(),
+        });
+        return Response.json({
+          active: true,
+          productId: "cloud_backup_yearly",
+          expiresAt: vipExpiresAt,
+          maxSizeBytes: YEARLY_MAX_BYTES,
+          vipOwner: true,
+        });
+      }
       const productId = body.productId as string | undefined;
       const purchaseToken = body.purchaseToken as string | undefined;
       if (productId && purchaseToken && ALLOWED_PRODUCTS.has(productId)) {
@@ -157,19 +178,19 @@ serve(async (req) => {
       return Response.json({ deleted: true });
     }
 
-    // All storage actions require an active paid subscription
+    // All storage actions require an active paid subscription (or VIP owner email)
     const { data: sub } = await supabase
       .from("user_subscriptions")
       .select("*")
       .eq("firebase_uid", uid)
       .maybeSingle();
-    const active = !!sub && sub.status === "active" && new Date(sub.expires_at).getTime() > Date.now();
+    const active = isVipOwner || (!!sub && sub.status === "active" && new Date(sub.expires_at).getTime() > Date.now());
     if (!active) {
       return new Response(JSON.stringify({ error: "subscription_required", active: false }), { status: 403 });
     }
 
     const storagePath = `backups/expense/${uid}/latest.zip`;
-    const planMaxBytes = maxBytesForProduct(sub?.product_id);
+    const planMaxBytes = isVipOwner ? YEARLY_MAX_BYTES : maxBytesForProduct(sub?.product_id);
 
     if (action === "upload_url") {
       const requestedBytes = Number(body.sizeBytes ?? 0);
