@@ -101,7 +101,7 @@ class _ShareDocumentReviewScreenState
         ),
         content: const Text(
           'Free accounts include 1 receipt image scan and 1 voice expense (10 sec) per day.\n\n'
-          'Subscribe to unlock Unlimited receipt OCR scans, 10 voice expenses/day (10 sec each), Daily Cloud Backup, and an Ad-Free experience.',
+          'Start your 7-Day Free Trial (\$0.99/month or \$5.99/year after trial) to unlock Unlimited receipt OCR scans, 10 voice expenses/day (10 sec each), Daily Cloud Backup, and an Ad-Free experience.',
         ),
         actions: [
           TextButton(

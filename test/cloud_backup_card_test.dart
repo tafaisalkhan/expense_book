@@ -20,11 +20,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Cloud backup & restore'), findsOneWidget);
     expect(find.text('Back up now'), findsNothing);
-    await tester.tap(find.text('Unlock cloud backup'));
+    await tester.tap(find.text('Unlock cloud backup (7-Day Free Trial)'));
     await tester.pumpAndSettle();
     expect(find.text('Cloud Backup Plans'), findsOneWidget);
     final monthlyBtn = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Monthly · \$0.99 / month'));
+        find.widgetWithText(FilledButton, '7-Day Free Trial · then \$0.99 / month (100 MB)'));
     expect(monthlyBtn.onPressed, isNull);
     expect(find.textContaining('Purchases and cloud access are disabled'),
         findsOneWidget);

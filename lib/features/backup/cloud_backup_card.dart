@@ -164,18 +164,93 @@ class _CloudBackupCardState extends ConsumerState<CloudBackupCard>
                 Text(
                     billing.active
                         ? 'Cloud backup subscription active · Ad-free enabled'
-                        : 'Available with \$0.99/month or \$5.99/year subscription',
+                        : '7-Day Free Trial · then ${billing.displayMonthlyPrice}/month or ${billing.displayYearlyPrice}/year',
                     style: TextStyle(
                         color: colors.primary, fontWeight: FontWeight.w600)),
                 if (!billing.active) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Try free for 7 days (\$0 today, cancel anytime on Google Play) — unlocks daily cloud backup, 100% ad-free, unlimited OCR & 10 voice entries/day.',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: colors.onSurfaceVariant,
+                        height: 1.35),
+                  ),
                   const SizedBox(height: 14),
                   SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
                           onPressed: subscribe,
                           icon: const Icon(Icons.cloud_upload_outlined),
-                          label: const Text('Unlock cloud backup'))),
+                          label: const Text('Unlock cloud backup (7-Day Free Trial)'))),
                 ] else ...[
+                  const SizedBox(height: 12),
+                  Builder(builder: (context) {
+                    final limitBytes = CloudBackupService.maxZipBytesForProduct(
+                        billing.activeProductId);
+                    final limitMb = CloudBackupService.maxZipMbForProduct(
+                        billing.activeProductId);
+                    final usedBytes = bytes ?? 0;
+                    final usedMb = usedBytes / (1024 * 1024);
+                    final ratio = (usedBytes / limitBytes).clamp(0.0, 1.0);
+                    final isYearly = billing.activeProductId ==
+                        CloudBackupService.yearlyProductId;
+                    final barColor = ratio > 0.92
+                        ? colors.error
+                        : (ratio > 0.78 ? Colors.orange : colors.primary);
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceContainerHighest
+                            .withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: colors.outlineVariant.withValues(alpha: 0.6)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                isYearly
+                                    ? 'Cloud Storage (Yearly 600 MB Plan)'
+                                    : 'Cloud Storage (Monthly 100 MB Plan)',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600, fontSize: 12.5),
+                              ),
+                              Text(
+                                '${usedMb.toStringAsFixed(2)} MB / $limitMb MB',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12.5,
+                                  color: barColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: ratio,
+                              minHeight: 8,
+                              color: barColor,
+                              backgroundColor:
+                                  colors.outlineVariant.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${(ratio * 100).toStringAsFixed(1)}% of your $limitMb MB ZIP limit used',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
                   const SizedBox(height: 12),
                   Text(date == null
                       ? 'Last backup: not saved yet'
@@ -246,7 +321,8 @@ class _CloudBackupCardState extends ConsumerState<CloudBackupCard>
                       'Runs automatically around 12:00 PM when Android allows.'),
                 ],
                 const SizedBox(height: 10),
-                Text('One latest ZIP per account · Up to 50 MB compressed',
+                Text(
+                    'One latest ZIP per account · Up to 100 MB (\$0.99/mo) or 600 MB (\$5.99/yr)',
                     style: Theme.of(context).textTheme.bodySmall),
                 if (lastError != null)
                   Padding(
@@ -272,8 +348,9 @@ class _CloudBackupPlanDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(monthlyBackupBillingProvider);
     final controller = ref.read(monthlyBackupBillingProvider.notifier);
-    final monthlyPrice = state.monthlyProduct?.price ?? '\$0.99';
-    final yearlyPrice = state.yearlyProduct?.price ?? '\$5.99';
+    final monthlyPrice = state.displayMonthlyPrice;
+    final yearlyPrice = state.displayYearlyPrice;
+    final colors = Theme.of(context).colorScheme;
     return AlertDialog(
       title: Row(children: [
         const Expanded(child: Text('Cloud Backup Plans')),
@@ -287,8 +364,33 @@ class _CloudBackupPlanDialog extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: colors.primaryContainer.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.verified_outlined, size: 18, color: colors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '7-Day Free Trial Included · \$0 today, cancel anytime on Google Play',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: colors.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           const Text(
-              'Automatically zip and save your expenses, images & voice notes to the cloud every day at 12:00 PM — plus enjoy the entire app 100% ad-free. Local device ZIP download stays free.'),
+              'Automatically zip and save your expenses, images & voice notes to the cloud every day at 12:00 PM — plus enjoy 100% ad-free, unlimited receipt OCR, and 10 voice entries/day. Local device ZIP download stays free.'),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -298,7 +400,7 @@ class _CloudBackupPlanDialog extends ConsumerWidget {
                       !state.preview
                   ? () => controller.buy(state.monthlyProduct)
                   : null,
-              child: Text('Monthly · $monthlyPrice / month'),
+              child: Text('7-Day Free Trial · then $monthlyPrice / month (100 MB)'),
             ),
           ),
           const SizedBox(height: 10),
@@ -310,7 +412,7 @@ class _CloudBackupPlanDialog extends ConsumerWidget {
                       !state.preview
                   ? () => controller.buy(state.yearlyProduct)
                   : null,
-              child: Text('Yearly · $yearlyPrice / year (Save 50%)'),
+              child: Text('7-Day Free Trial · then $yearlyPrice / year (600 MB · Save 50%)'),
             ),
           ),
           if (state.preview)

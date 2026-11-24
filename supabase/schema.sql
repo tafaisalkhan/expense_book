@@ -1,9 +1,9 @@
 -- Run this in Supabase SQL Editor (Project -> SQL Editor -> New Query)
 
--- 1. Create private storage bucket for encrypted/compressed ZIP backups
-insert into storage.buckets (id, name, public)
-values ('user-backups', 'user-backups', false)
-on conflict (id) do nothing;
+-- 1. Create private storage bucket for encrypted/compressed ZIP backups (up to 600 MB for Yearly plan; Monthly 100 MB enforced in cloud-backup function)
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('user-backups', 'user-backups', false, 629145600)
+on conflict (id) do update set file_size_limit = 629145600;
 
 -- 2. Table storing verified Google Play subscriptions ($0.99/mo or $5.99/yr)
 create table if not exists public.user_subscriptions (

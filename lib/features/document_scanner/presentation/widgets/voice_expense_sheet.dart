@@ -398,7 +398,7 @@ class _VoiceExpenseSheetState extends ConsumerState<_VoiceExpenseSheet> {
         content: Text(
           isSubscribed
               ? 'You have used all ${FeatureQuotaService.subscribedMaxVoicePerDay} voice entries (10s each) for today. Your daily limit resets tomorrow.'
-              : 'Free accounts include 1 OCR receipt image and 1 voice entry (10s) per day.\n\nSubscribe (\$0.99/month or \$5.99/year) to unlock:\n• 10 voice entries/day (10s each)\n• Unlimited OCR receipt scans\n• Daily 12:00 PM cloud backup\n• 100% Ad-Free experience',
+              : 'Free accounts include 1 OCR receipt image and 1 voice entry (10s) per day.\n\nStart your 7-Day Free Trial (\$0.99/month or \$5.99/year after trial) to unlock:\n• 10 voice entries/day (10s each)\n• Unlimited OCR receipt scans\n• Daily 12:00 PM cloud backup\n• 100% Ad-Free experience',
         ),
         actions: [
           TextButton(

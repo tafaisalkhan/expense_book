@@ -13,6 +13,8 @@ class CloudBackupBillingState {
   final DateTime? expiresAt;
   final ProductDetails? monthlyProduct;
   final ProductDetails? yearlyProduct;
+  final String? monthlyRecurringPrice;
+  final String? yearlyRecurringPrice;
   final String? message;
   const CloudBackupBillingState({
     this.active = false,
@@ -23,10 +25,22 @@ class CloudBackupBillingState {
     this.expiresAt,
     this.monthlyProduct,
     this.yearlyProduct,
+    this.monthlyRecurringPrice,
+    this.yearlyRecurringPrice,
     this.message,
   });
 
   bool get hasAnyProduct => monthlyProduct != null || yearlyProduct != null;
+  String get displayMonthlyPrice =>
+      monthlyRecurringPrice ??
+      ((monthlyProduct != null && monthlyProduct!.rawPrice > 0)
+          ? monthlyProduct!.price
+          : '\$0.99');
+  String get displayYearlyPrice =>
+      yearlyRecurringPrice ??
+      ((yearlyProduct != null && yearlyProduct!.rawPrice > 0)
+          ? yearlyProduct!.price
+          : '\$5.99');
 }
 
 class CloudBackupBilling extends StateNotifier<CloudBackupBillingState> {
@@ -79,6 +93,8 @@ class CloudBackupBilling extends StateNotifier<CloudBackupBillingState> {
       activeProductId: state.activeProductId,
       monthlyProduct: state.monthlyProduct,
       yearlyProduct: state.yearlyProduct,
+      monthlyRecurringPrice: state.monthlyRecurringPrice,
+      yearlyRecurringPrice: state.yearlyRecurringPrice,
       expiresAt: state.expiresAt,
       checking: false,
       preview: preview,
@@ -111,12 +127,16 @@ class CloudBackupBilling extends StateNotifier<CloudBackupBillingState> {
       if (!mounted) return;
       ProductDetails? monthly;
       ProductDetails? yearly;
+      String? monthlyBasePrice;
+      String? yearlyBasePrice;
       for (final p in result.productDetails) {
         if (p.id == CloudBackupService.monthlyProductId) {
           monthly = _pickPreferredOffer(monthly, p);
+          if (p.rawPrice > 0) monthlyBasePrice = p.price;
         }
         if (p.id == CloudBackupService.yearlyProductId) {
           yearly = _pickPreferredOffer(yearly, p);
+          if (p.rawPrice > 0) yearlyBasePrice = p.price;
         }
       }
       state = CloudBackupBillingState(
@@ -129,6 +149,8 @@ class CloudBackupBilling extends StateNotifier<CloudBackupBillingState> {
         message: state.message,
         monthlyProduct: monthly,
         yearlyProduct: yearly,
+        monthlyRecurringPrice: monthlyBasePrice,
+        yearlyRecurringPrice: yearlyBasePrice,
       );
     } catch (_) {
       /* User can still restore a subscription later. */
@@ -152,6 +174,8 @@ class CloudBackupBilling extends StateNotifier<CloudBackupBillingState> {
         activeProductId: result['productId'] as String?,
         monthlyProduct: state.monthlyProduct,
         yearlyProduct: state.yearlyProduct,
+        monthlyRecurringPrice: state.monthlyRecurringPrice,
+        yearlyRecurringPrice: state.yearlyRecurringPrice,
         checking: false,
         preview: preview,
         expiresAt: DateTime.tryParse(result['expiresAt'] as String? ?? ''),
@@ -162,6 +186,8 @@ class CloudBackupBilling extends StateNotifier<CloudBackupBillingState> {
       state = CloudBackupBillingState(
         monthlyProduct: state.monthlyProduct,
         yearlyProduct: state.yearlyProduct,
+        monthlyRecurringPrice: state.monthlyRecurringPrice,
+        yearlyRecurringPrice: state.yearlyRecurringPrice,
         checking: false,
         preview: preview,
         message: 'Sign in with Google to check cloud backup subscription.',
@@ -181,6 +207,8 @@ class CloudBackupBilling extends StateNotifier<CloudBackupBillingState> {
       state = CloudBackupBillingState(
         monthlyProduct: state.monthlyProduct,
         yearlyProduct: state.yearlyProduct,
+        monthlyRecurringPrice: state.monthlyRecurringPrice,
+        yearlyRecurringPrice: state.yearlyRecurringPrice,
         pending: true,
         checking: false,
       );
@@ -217,6 +245,8 @@ class CloudBackupBilling extends StateNotifier<CloudBackupBillingState> {
       state = CloudBackupBillingState(
         monthlyProduct: state.monthlyProduct,
         yearlyProduct: state.yearlyProduct,
+        monthlyRecurringPrice: state.monthlyRecurringPrice,
+        yearlyRecurringPrice: state.yearlyRecurringPrice,
         pending: true,
         checking: false,
       );
@@ -251,6 +281,8 @@ class CloudBackupBilling extends StateNotifier<CloudBackupBillingState> {
         activeProductId: purchase.productID,
         monthlyProduct: state.monthlyProduct,
         yearlyProduct: state.yearlyProduct,
+        monthlyRecurringPrice: state.monthlyRecurringPrice,
+        yearlyRecurringPrice: state.yearlyRecurringPrice,
         checking: false,
         expiresAt: DateTime.tryParse(result['expiresAt'] as String? ?? ''),
         message: 'Cloud backup is now active!',

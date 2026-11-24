@@ -187,5 +187,13 @@ void main() {
     expect(CloudBackupService.accountHash('user-a'), hasLength(64));
     expect(CloudBackupService.accountHash('user-a'),
         isNot(CloudBackupService.accountHash('user-b')));
+    expect(
+        CloudBackupService.maxZipBytesForProduct(
+            CloudBackupService.monthlyProductId),
+        100 * 1024 * 1024);
+    expect(
+        CloudBackupService.maxZipBytesForProduct(
+            CloudBackupService.yearlyProductId),
+        600 * 1024 * 1024);
   });
 }

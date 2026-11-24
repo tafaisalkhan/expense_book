@@ -13,6 +13,12 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const PLAY_SA_JSON = Deno.env.get("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON") ?? "";
 
 const ALLOWED_PRODUCTS = new Set(["cloud_backup_monthly_v2", "cloud_backup_monthly", "cloud_backup_yearly"]);
+const MONTHLY_MAX_BYTES = 100 * 1024 * 1024; // 100 MB ($0.99/mo)
+const YEARLY_MAX_BYTES = 600 * 1024 * 1024;  // 600 MB ($5.99/yr)
+
+function maxBytesForProduct(productId: string | null | undefined): number {
+  return productId === "cloud_backup_yearly" ? YEARLY_MAX_BYTES : MONTHLY_MAX_BYTES;
+}
 const FIREBASE_JWKS = createRemoteJWKSet(
   new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"),
 );
@@ -122,7 +128,12 @@ serve(async (req) => {
           expires_at: verified.expiresAt,
           updated_at: new Date().toISOString(),
         });
-        return Response.json({ active: verified.active, productId, expiresAt: verified.expiresAt });
+        return Response.json({
+          active: verified.active,
+          productId,
+          expiresAt: verified.expiresAt,
+          maxSizeBytes: maxBytesForProduct(productId),
+        });
       }
       const { data: sub } = await supabase
         .from("user_subscriptions")
@@ -130,7 +141,12 @@ serve(async (req) => {
         .eq("firebase_uid", uid)
         .maybeSingle();
       const active = !!sub && sub.status === "active" && new Date(sub.expires_at).getTime() > Date.now();
-      return Response.json({ active, productId: sub?.product_id ?? null, expiresAt: sub?.expires_at ?? null });
+      return Response.json({
+        active,
+        productId: sub?.product_id ?? null,
+        expiresAt: sub?.expires_at ?? null,
+        maxSizeBytes: maxBytesForProduct(sub?.product_id),
+      });
     }
 
     if (action === "delete_data") {
@@ -153,25 +169,43 @@ serve(async (req) => {
     }
 
     const storagePath = `backups/expense/${uid}/latest.zip`;
+    const planMaxBytes = maxBytesForProduct(sub?.product_id);
 
     if (action === "upload_url") {
+      const requestedBytes = Number(body.sizeBytes ?? 0);
+      if (requestedBytes > planMaxBytes) {
+        const limitMb = Math.round(planMaxBytes / (1024 * 1024));
+        return new Response(
+          JSON.stringify({ error: `Backup exceeds your ${limitMb} MB plan limit.`, maxSizeBytes: planMaxBytes }),
+          { status: 413 },
+        );
+      }
       const { data, error } = await supabase.storage
         .from("user-backups")
         .createSignedUploadUrl(storagePath, { upsert: true });
       if (error) throw error;
-      return Response.json({ signedUrl: data.signedUrl, path: storagePath });
+      return Response.json({ signedUrl: data.signedUrl, path: storagePath, maxSizeBytes: planMaxBytes });
     }
 
     if (action === "commit_metadata") {
+      const sizeBytes = Number(body.sizeBytes ?? 0);
+      if (sizeBytes > planMaxBytes) {
+        await supabase.storage.from("user-backups").remove([storagePath]);
+        const limitMb = Math.round(planMaxBytes / (1024 * 1024));
+        return new Response(
+          JSON.stringify({ error: `Backup exceeds your ${limitMb} MB plan limit.`, maxSizeBytes: planMaxBytes }),
+          { status: 413 },
+        );
+      }
       await supabase.from("user_backup_metadata").upsert({
         firebase_uid: uid,
         storage_path: storagePath,
         exported_at: body.exportedAt ?? new Date().toISOString(),
-        size_bytes: Number(body.sizeBytes ?? 0),
+        size_bytes: sizeBytes,
         expense_count: Number(body.expenseCount ?? 0),
         updated_at: new Date().toISOString(),
       });
-      return Response.json({ ok: true });
+      return Response.json({ ok: true, maxSizeBytes: planMaxBytes });
     }
 
     if (action === "download_url") {

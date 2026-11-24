@@ -7,8 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 class BackupSnapshot {
-  static const maxZipBytes = 50 * 1024 * 1024;
-  static const maxJsonBytes = 150 * 1024 * 1024;
+  static const monthlyMaxZipBytes = 100 * 1024 * 1024; // 100 MB ($0.99/mo)
+  static const yearlyMaxZipBytes = 600 * 1024 * 1024;  // 600 MB ($5.99/yr)
+  static const maxZipBytes = yearlyMaxZipBytes;
+  static const maxJsonBytes = 900 * 1024 * 1024;
   static const tables = [
     'categories',
     'subcategories',
@@ -88,15 +90,17 @@ class BackupSnapshot {
     });
   }
 
-  Uint8List toZip() {
+  Uint8List toZip({int maxBytes = maxZipBytes}) {
     final bytes = utf8.encode(jsonEncode(payload));
     if (bytes.length > maxJsonBytes) {
-      throw const FormatException('Backup data exceeds the 150 MB limit.');
+      throw const FormatException('Backup data exceeds the maximum size limit.');
     }
     final encoded = ZipEncoder().encode(Archive()
       ..addFile(ArchiveFile('myexpense_backup.json', bytes.length, bytes)))!;
-    if (encoded.length > maxZipBytes) {
-      throw const FormatException('Compressed backup exceeds the 50 MB limit.');
+    if (encoded.length > maxBytes) {
+      final limitMb = (maxBytes / (1024 * 1024)).round();
+      throw FormatException(
+          'Compressed backup exceeds your $limitMb MB plan limit.');
     }
     return Uint8List.fromList(encoded);
   }

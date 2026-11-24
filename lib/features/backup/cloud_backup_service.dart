@@ -22,12 +22,20 @@ class CloudBackupMetadata {
 }
 
 class CloudBackupService {
-  static const monthlyProductId = 'cloud_backup_monthly_v2'; // $0.99 / month
-  static const yearlyProductId = 'cloud_backup_yearly';   // $5.99 / year
+  static const monthlyProductId = 'cloud_backup_monthly_v2'; // $0.99 / month (100 MB)
+  static const yearlyProductId = 'cloud_backup_yearly';   // $5.99 / year (600 MB)
+  static const int monthlyMaxZipBytes = 100 * 1024 * 1024;
+  static const int yearlyMaxZipBytes = 600 * 1024 * 1024;
   static const Set<String> subscriptionProductIds = {
     monthlyProductId,
     yearlyProductId,
   };
+
+  static int maxZipBytesForProduct(String? productId) =>
+      productId == yearlyProductId ? yearlyMaxZipBytes : monthlyMaxZipBytes;
+
+  static int maxZipMbForProduct(String? productId) =>
+      productId == yearlyProductId ? 600 : 100;
 
   static String pathFor(String uid) => 'backups/expense/$uid/latest.zip';
   static String accountHash(String uid) =>
@@ -159,10 +167,15 @@ class CloudBackupService {
         final existing = await metadata();
         if (existing != null) return 'No changes since the last backup.';
       }
-      final bytes = snapshot.toZip();
+      final activeProductId = entitlement['productId'] as String?;
+      final limitBytes = maxZipBytesForProduct(activeProductId);
+      final bytes = snapshot.toZip(maxBytes: limitBytes);
       _checkUid(uid);
 
-      final urlRes = await _callEdge({'action': 'upload_url'});
+      final urlRes = await _callEdge({
+        'action': 'upload_url',
+        'sizeBytes': bytes.length,
+      });
       final signedUrl = urlRes['signedUrl'] as String;
       await _uploadBytes(signedUrl, bytes);
 
