@@ -15,31 +15,37 @@
 </head>
 <body>
     <h1>Privacy Policy for Expense Book</h1>
-    <p class="effective-date">Effective Date: October 4, 2026 | Application: Expense Book (com.myexpense.book)</p>
+    <p class="effective-date">Effective Date: November 24, 2026 | Application: Expense Book (com.myexpense.book)</p>
 
     <div class="box">
-        <strong>Offline-First Promise:</strong> Expense Book is designed with privacy at its core. All your expenses, budgets, profiles, and receipts are stored locally on your device by default.
+        <strong>Offline-First &amp; Private Cloud Backup Promise:</strong> Expense Book stores your expenses, budgets, profiles, and receipts locally on your device by default, with optional encrypted Cloud ZIP backup for signed-in Cloud Backup subscribers.
     </div>
 
     <h2>1. Overview</h2>
-    <p>Expense Book ("we", "our", or "us") respects your privacy. This policy details how our app handles data, permissions, and advertising for <code>com.myexpense.book</code>.</p>
+    <p>Expense Book ("we", "our", or "us") respects your privacy. This policy details how our app handles data, cloud backups, on-device OCR/Voice features, permissions, and advertising for <code>com.myexpense.book</code>.</p>
 
-    <h2>2. Data Collection & Processing</h2>
-    <h3>A. Local Financial Data</h3>
-    <p>Expense records, categories, monthly budgets, and profile labels remain strictly inside a local SQLite database on your device and are never uploaded without your manual export action.</p>
+    <h2>2. Data Collection &amp; Processing</h2>
+    <h3>A. Local Financial Data &amp; On-Device OCR / Voice</h3>
+    <p>Expense records, categories, monthly budgets, receipt photos, and profile labels are stored in a local SQLite database on your device. Receipt text recognition (OCR) and 10-second voice-to-expense recognition run on your device.</p>
 
-    <h3>B. Google Authentication</h3>
-    <p>Google Account email and display name are used solely for identity verification during login via Firebase Auth.</p>
+    <h3>B. Optional Cloud ZIP Backup &amp; Restore</h3>
+    <p>When signed in with Google with an active Cloud Backup subscription (<code>cloud_backup_monthly_v2</code> up to 100 MB, or <code>cloud_backup_yearly</code> up to 600 MB), your expenses and receipt attachments can be backed up manually or on an automatic schedule as a compressed ZIP archive (<code>latest.zip</code>) to our private cloud storage scoped strictly to your authenticated account UID over HTTPS/TLS.</p>
 
-    <h3>C. Additional Device Permissions (POST_NOTIFICATIONS, VIBRATE, USE_BIOMETRIC)</h3>
-    <p>Notifications and vibration are used for scheduled expense reminders. Biometrics provide optional app lock security.</p>
+    <h3>C. Google Authentication</h3>
+    <p>Google Account email, display name, and UID are used solely for identity verification, subscription entitlement checks, and isolating your private Cloud ZIP backup.</p>
 
-    <h2>3. Advertising & In-App Purchase</h2>
-    <p>The app uses Google AdMob (<code>com.google.android.gms.ads</code>) for ads. Users can purchase the <strong>Remove Ads</strong> product (<code>remove_ads</code> - $4.99) to disable all advertising permanently.</p>
+    <h3>D. Device Permissions</h3>
+    <p><code>RECORD_AUDIO</code> is used only when you tap Voice Expense for 10-second speech recognition. Camera/Photo access is used only when scanning or attaching receipts. <code>POST_NOTIFICATIONS</code>, <code>VIBRATE</code>, and <code>USE_BIOMETRIC</code> support reminders and optional app lock security.</p>
 
-    <h2>4. Contact</h2>
+    <h2>3. Advertising, In-App Purchases &amp; Subscriptions</h2>
+    <p>The app uses Google AdMob (<code>com.google.android.gms.ads</code>) for free-tier ads. Users can purchase <strong>Remove Ads</strong> (<code>remove_ads</code> - $4.99) or subscribe to <strong>Cloud Backup</strong> ($0.99/month or $5.99/year with a 7-day free trial) via Google Play Billing to disable all advertising and unlock cloud backup.</p>
+
+    <h2>4. Data Deletion &amp; Right to Erasure</h2>
+    <p>You can permanently delete your account, local records, and your Cloud ZIP backup archive at any time inside the app via <strong>More &rarr; Delete Account</strong> (which purges your cloud ZIP file and metadata immediately), or by contacting us at the email below.</p>
+
+    <h2>5. Contact</h2>
     <p><strong>Developer:</strong> Muhammad Faisal Khan</p>
-    <p><strong>Email:</strong> <a href="mailto:android.nextlevel@gmail.com">android.nextlevel@gmail.com</a></p>
+    <p><strong>Email:</strong> <a href="mailto:muhammadfaysal.khan7@gmail.com">muhammadfaysal.khan7@gmail.com</a> / <a href="mailto:android.nextlevel@gmail.com">android.nextlevel@gmail.com</a></p>
     <p><strong>GitHub Repository:</strong> <a href="https://github.com/tafaisalkhan/expense_book.git">https://github.com/tafaisalkhan/expense_book.git</a></p>
 </body>
 </html>

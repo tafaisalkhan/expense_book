@@ -1,60 +1,66 @@
 # Privacy Policy for Expense Book
 
-**Effective Date:** October 4, 2026  
+**Effective Date:** November 24, 2026  
 **Application Name:** Expense Book  
 **App Name:** `My Expence Book`  
 **Package Name:** `com.myexpense.book`  
 **Developer:** Muhammad Faisal Khan  
-**Contact Email:** android.nextlevel@gmail.com  
+**Contact Email:** muhammadfaysal.khan7@gmail.com  
 
 ---
 
 ## 1. Overview
-**Expense Book** ("we", "our", or "us") is dedicated to protecting your privacy. This Privacy Policy explains how our application handles information, user data, device permissions, and advertising when you use the Expense Book mobile application (`com.myexpense.book`).
+**Expense Book** ("we", "our", or "us") is dedicated to protecting your privacy. This Privacy Policy explains how our application handles information, user data, cloud backups, on-device OCR/Voice entry, device permissions, and advertising when you use the Expense Book mobile application (`com.myexpense.book`).
 
-Expense Book is built on an **Offline-First Architecture**. Your financial records, receipts, categories, budgets, and personal profiles are stored locally on your device by default.
+Expense Book is built on an **Offline-First Architecture**. Your financial records, receipts, categories, budgets, and personal profiles are stored locally on your device by default, with optional encrypted ZIP cloud backup for signed-in Cloud Backup subscribers.
 
 ---
 
 ## 2. Information We Collect & How It Is Used
 
-### A. Local Financial Data (Offline-First)
-* **What is stored:** Expense amounts, category classifications, transaction dates, merchant names, notes, family profile tags, and monthly budget limits.
-* **Storage Location:** Stored exclusively in a local SQLite database on your device.
-* **Data Transmission:** This data is **never** uploaded to external servers without your explicit manual action (e.g., exporting a local backup file).
+### A. Local Financial Data & On-Device OCR / Voice Processing
+* **What is stored:** Expense amounts, category classifications, transaction dates, merchant names, notes, receipt photos, family profile tags, and monthly budget limits.
+* **Default Storage Location:** Stored in an isolated local SQLite database and app sandbox on your device.
+* **On-Device Receipt OCR & 10-Second Voice Input:** Receipt text recognition (Google ML Kit) and voice-to-expense speech recognition run directly on your device. Raw voice audio is not stored on external servers.
 
-### B. Google Authentication (Firebase Auth)
+### B. Optional Cloud ZIP Backup & Restore (Subscribers & Authorized Accounts)
+* **How it works:** If you sign in with Google and activate a Cloud Backup plan (`cloud_backup_monthly_v2` - 100 MB limit, or `cloud_backup_yearly` - 600 MB limit with 7-day free trial), you can back up your database and receipt images as a single compressed ZIP archive (`latest.zip`) to our secure private cloud storage bucket (`user-backups/<uid>/latest.zip`) and schedule automatic backups.
+* **Encryption & Access Control:** All cloud backup transmissions use HTTPS/TLS encryption in transit and private, authenticated row-level access controls at rest so only your authenticated Google account UID can upload, download, or delete your backup archive.
+
+### C. Google Authentication
 * **What is collected:** Google Account email address, display name, and unique user identifier (UID).
-* **Purpose:** Used strictly for secure user authentication and account login verification.
+* **Purpose:** Used strictly for secure user authentication, subscription entitlement verification, and scoping your private Cloud ZIP backup.
 
-### C. Additional Device Permissions
+### D. Device Permissions
+* **Microphone (`RECORD_AUDIO`):** Used only when you tap the Voice Expense button to record a 10-second spoken expense entry.
+* **Camera / Photos:** Used only when you capture or select a receipt photo for expense attachment or on-device OCR scanning.
 * **Notifications & Vibration (`POST_NOTIFICATIONS`, `VIBRATE`):** To deliver scheduled expense logging reminders and notifications.
 * **Biometric Security (`USE_BIOMETRIC`, `USE_FINGERPRINT`):** For optional fingerprint/face security app lock.
 
 ---
 
-## 3. Advertising & In-App Purchases
+## 3. Advertising & In-App Purchases / Subscriptions
 
 ### A. Google Mobile Ads (AdMob)
-* Expense Book integrates Google Mobile Ads (`com.google.android.gms.ads`) to serve Banner, Interstitial, and Rewarded Video Ads.
+* Expense Book integrates Google Mobile Ads (`com.google.android.gms.ads`) to serve Banner, Interstitial, and user-initiated Rewarded Video Ads for free-tier users.
 * Google AdMob may collect device identifiers (such as Advertising ID) and non-personal diagnostic data in accordance with Google's Privacy Policy.
 
-### B. "Remove Ads" In-App Purchase (`remove_ads`)
-* Users can make a one-time in-app purchase (`remove_ads` - $4.99) via Google Play Billing to permanently remove all banner, interstitial, and rewarded ads across the entire application.
+### B. In-App Purchases & Subscriptions
+* **Remove Ads (`remove_ads` - $4.99):** One-time purchase that permanently disables all ads.
+* **Cloud Backup Subscriptions (`cloud_backup_monthly_v2` - $0.99/mo for 100 MB, `cloud_backup_yearly` - $5.99/yr for 600 MB):** Includes a 7-day free trial, automatic cloud ZIP backup & restore, 100% ad-free experience, unlimited receipt OCR, and 10 voice entries per day.
+* Google Play handles all payment processing; Expense Book never receives your credit card or payment details.
 
 ---
 
-## 4. Data Backup, Export & Portability
-* **Download Data:** Users can export their entire financial database and settings into a local JSON backup file (`myexpense_data_backup_<timestamp>.json`).
-* **Restore Data:** Users can import this backup file on any device to restore their records.
-* **User Sovereignty:** You have complete control over your data files and can save, transfer, or delete them at your discretion.
+## 4. Data Backup, Export, Portability & Deletion (Right to Erasure)
+* **Local ZIP Export & Import:** Free and subscribed users can export or import a local ZIP backup file on their device at any time.
+* **Account & Cloud Backup Deletion:** You can permanently delete your account, local data, and any stored Cloud ZIP backup archive (`latest.zip` and backup metadata) at any time from **More → Delete Account** inside the app, or by emailing **muhammadfaysal.khan7@gmail.com** / **android.nextlevel@gmail.com**.
 
 ---
 
 ## 5. Security & Data Retention
-* **Local Storage Security:** All application data is stored in isolated app storage protected by Android system security sandbox boundaries.
+* **Encryption in Transit & Isolation:** All cloud backup uploads/downloads use HTTPS/TLS signed URLs valid for a single authenticated UID.
 * **Device Lock Protection:** Optional Fingerprint / Face ID / PIN security lock can be enabled to prevent unauthorized access to your expense records.
-* **Data Erasure:** You can flush all local data immediately by selecting "Sign Out" or "Delete Account" in the app settings.
 
 ---
 
@@ -69,7 +75,7 @@ We may update our Privacy Policy periodically. Any changes will be posted on thi
 ---
 
 ## 8. Contact Us
-If you have any questions or suggestions regarding this Privacy Policy, please contact us at:  
+If you have any questions or data deletion requests regarding this Privacy Policy, please contact us at:  
 * **Developer:** Muhammad Faisal Khan  
-* **Email:** [android.nextlevel@gmail.com](mailto:android.nextlevel@gmail.com)  
+* **Email:** [muhammadfaysal.khan7@gmail.com](mailto:muhammadfaysal.khan7@gmail.com) / [android.nextlevel@gmail.com](mailto:android.nextlevel@gmail.com)  
 * **GitHub Repository:** [https://github.com/tafaisalkhan/expense_book.git](https://github.com/tafaisalkhan/expense_book.git)
