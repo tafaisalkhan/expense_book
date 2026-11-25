@@ -84,8 +84,12 @@ class _CloudBackupCardState extends ConsumerState<CloudBackupCard>
       final message = await action();
       if (mounted) setState(() => status = message);
     } on CloudSubscriptionRequired {
-      await ref.read(monthlyBackupBillingProvider.notifier).refresh();
-      if (mounted) subscribe();
+      if (!CloudBackupService.isVipOwnerUser()) {
+        await ref.read(monthlyBackupBillingProvider.notifier).refresh();
+        if (mounted) subscribe();
+      } else if (mounted) {
+        setState(() => status = 'VIP account active. Connecting to cloud storage...');
+      }
     } catch (e) {
       if (mounted) {
         setState(() => status = e.toString().contains('object-not-found')
@@ -212,20 +216,23 @@ class _CloudBackupCardState extends ConsumerState<CloudBackupCard>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                isYearly
-                                    ? 'Cloud Storage (Yearly 600 MB Plan)'
-                                    : 'Cloud Storage (Monthly 100 MB Plan)',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600, fontSize: 12.5),
+                              Expanded(
+                                child: Text(
+                                  isYearly
+                                      ? 'Cloud Storage (Yearly 600 MB Plan)'
+                                      : 'Cloud Storage (Monthly 100 MB Plan)',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600, fontSize: 12),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
+                              const SizedBox(width: 8),
                               Text(
                                 '${usedMb.toStringAsFixed(2)} MB / $limitMb MB',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 12.5,
+                                  fontSize: 12,
                                   color: barColor,
                                 ),
                               ),

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:myexpence/core/theme/app_theme.dart';
@@ -29,7 +30,7 @@ class MoreScreen extends ConsumerWidget {
         title: const Text('More & Settings'),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
           // Google Profile & Account Card (Firebase for Login only)
           Card(
@@ -66,6 +67,35 @@ class MoreScreen extends ConsumerWidget {
                               style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                               overflow: TextOverflow.ellipsis,
                             ),
+                            if (authUser.isLoggedIn && authUser.uid.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              InkWell(
+                                borderRadius: BorderRadius.circular(6),
+                                onTap: () {
+                                  Clipboard.setData(ClipboardData(text: authUser.uid));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Firebase User ID copied to clipboard!'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'UID: ${authUser.uid.substring(0, authUser.uid.length > 10 ? 10 : authUser.uid.length)}... (Tap to copy)',
+                                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Icon(Icons.copy_rounded, size: 12, color: Colors.grey[600]),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),

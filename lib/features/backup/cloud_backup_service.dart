@@ -107,13 +107,35 @@ class CloudBackupService {
   Future<Map<String, dynamic>> access(
       {String? productId, String? purchaseToken}) async {
     final uid = await signedInUid();
-    final result = await _callEdge(<String, dynamic>{
-      'action': 'access',
-      if (productId != null) 'productId': productId,
-      if (purchaseToken != null) 'purchaseToken': purchaseToken,
-    });
-    _checkUid(uid);
-    return result;
+    final isVip = isVipOwnerUser();
+    try {
+      final result = await _callEdge(<String, dynamic>{
+        'action': 'access',
+        if (productId != null) 'productId': productId,
+        if (purchaseToken != null) 'purchaseToken': purchaseToken,
+      });
+      _checkUid(uid);
+      if (isVip) {
+        return <String, dynamic>{
+          ...result,
+          'active': true,
+          'productId': yearlyProductId,
+          'maxSizeBytes': yearlyMaxZipBytes,
+          'vipOwner': true,
+        };
+      }
+      return result;
+    } on CloudSubscriptionRequired {
+      if (isVip) {
+        return <String, dynamic>{
+          'active': true,
+          'productId': yearlyProductId,
+          'maxSizeBytes': yearlyMaxZipBytes,
+          'vipOwner': true,
+        };
+      }
+      rethrow;
+    }
   }
 
   /// Purges this user's Supabase ZIP backup and metadata on account deletion.
